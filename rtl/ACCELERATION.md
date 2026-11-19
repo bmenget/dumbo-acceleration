@@ -5,6 +5,15 @@ which files each one changes, and how. Line references are to `core_v2` as of 20
 Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 port is described in
 [core_v2/V2_PORT.md](core_v2/V2_PORT.md).
 
+**Status (2026-11-19)**
+
+| Option | State |
+|---|---|
+| A | Swept: `core_v2_r1`, `r4`, `r5`, `r8`, `r16` (see `reports/benchmark.csv`) |
+| B | **Done:** [core_v2_r4_optB/](core_v2_r4_optB/OPT_B.md), on top of `core_v2_r4`. Section 4 describes how it was built. |
+| C | Not started |
+| D | Not started |
+
 ## 1. Where the time goes today
 
 **RTL map** (only `core_v2_opt*/` gets edited; `lwc/` and `core_v1/` are frozen):
@@ -47,7 +56,7 @@ The cycle estimates below are rough per-block models for long messages. Measure 
 | | Option | Gets cycles per PT block to about | Fmax | Area | Difficulty |
 |---|---|---|---|---|---|
 | A | Unroll more rounds per cycle | 19 (R=20), 15 (R=40) | drops about 1/R | grows with R | constants only (plus one ROM table for R=20/40/80) |
-| B | Overlap I/O with the permutation | 21 | about the same | +160 FF | FSM rework |
+| B | Overlap I/O with the permutation | 21 (measured at R=4: 50.7 → 42.8) | about the same | +160 FF (measured +158 FF, about +80 LUT) | FSM rework |
 | C | Two permutation units | 19 alone, about 10–12 with B | about the same | about 2× permutation, +160 FF | datapath + FSM rework |
 | D | Pipeline the permutation and interleave two calls | same cycles as baseline, at about 2× the clock | rises | +160–320 FF, same round logic | permutation + datapath + FSM |
 
@@ -57,7 +66,7 @@ The cycle estimates below are rough per-block models for long messages. Measure 
 |---|---|---|---|---|
 | `elephant_constants.vhd` | ✎ R value | · | · | ✎ stage count |
 | `elephant_perm.vhd` | ✎ only for R ∉ {1,4,5,8,10,16} | · | · (instantiated twice) | ✎ pipeline register, per-stage constants |
-| `elephant_datapath.vhd` | · | ✎ keystream buffer | ✎ second unit, second state register, masks, tag XOR | ✎ second holding register, muxes |
+| `elephant_datapath.vhd` | · | ✎ keystream buffer, cur ⊕ next mask, nonce source | ✎ second unit, second state register, masks, tag XOR | ✎ second holding register, muxes |
 | `elephant_datapath_lfsr.vhd` | · | · | · (possibly +8 FF, see C) | · |
 | `CryptoCore.vhd` | · | ✎ schedule | ✎ schedule | ✎ schedule |
 | `profile.txt` | · | · | ✎ one probe per unit | ✎ probe per in-flight call |
@@ -116,6 +125,29 @@ keystream for block k+1 has to live somewhere other than `ms_reg` while the MAC 
 
 **Gain.** The roughly 6 I/O cycles per block hide behind 8 permutation cycles: about 27 → 21 cycles per
 block. This option also builds most of the FSM that C and D need.
+
+**As built ([core_v2_r4_optB/](core_v2_r4_optB/OPT_B.md)).** It follows the plan above, with these differences:
+- **Keystream mask.** KS(k+1) needs cur ⊕ next, a mask leg `core_v2` doesn't have. The 6-way select became
+  `src xor mask` (`src_sel`: ms / input block / N‖0 / tag; `mask_sel`: none / prev / prev⊕next / cur⊕next / L).
+- **Nonce.** It comes straight from `npub_out` (`SRC_NONCE`). Otherwise it would overwrite C(k) in
+  `load_data_output` while C(k) waits for its MAC. The MAC start captures `C(k) ⊕ masks` into `ms_reg` in one
+  cycle, so no separate copy cycle is needed.
+- **FSM structure.** Instead of a merged `PERM_IO` state, `CryptoCore` has a block filler (loader) that runs
+  in any state, plus a permutation scheduler (`AD_INIT`, `AD_WAIT`, `MSG_LFSR`, `MSG_WAIT`, `PERM`, `POST`,
+  `FINAL_PRE`). `calling_state` is gone; a `job` register says what the running permutation is for.
+- **AD overlap too.** AD block j+1 fills while block j permutes. This needs no extra register and saves
+  about 6 of 28 cycles per AD block at R = 4.
+- **LFSR start position.** The message reload starts the LFSR at a = 0, not a = 1, so every keystream uses
+  cur ⊕ next.
+
+Measured at R = 4 against `core_v2_r4`:
+- **Plaintext:** 50.74 → 42.81 cycles per block.
+- **AD:** 28.08 → 22.06 cycles per block.
+- **Long profile:** I/O-only cycles drop from 12.6% to 0.3%.
+- **Area:** +158 FF and about +80 LUT.
+
+The remaining overhead is one setup cycle and one post cycle per permutation, plus KS(k+1), which has nothing
+to overlap with on one unit.
 
 ## 5. Option C: two permutation units
 
@@ -213,6 +245,10 @@ or the LWC wrapper. Check the Vivado timing report before adding more stages.
    datapaths.
 4. **B on top of C or D.** After the permutation cycles are cut, I/O and control overhead is most of each
    block, and this is where the remaining gain is.
+
+   *Update:* B was built first, as `core_v2_r4_optB`. For C or D, start from that core: its loader and
+   KS(k+1)/MAC(k) schedule are exactly the pairing C and D need. A second unit would run KS(k+1) at the same
+   time as MAC(k) instead of before it.
 
 Every variant goes in its own `rtl/core_v2_optN/` (copy `core_v2`, fix `filelist.txt`, keep the entity
 name `CryptoCore`). Then run `make sim-all`, `make cycles`, `make profile WL=long|short`, `make synth`

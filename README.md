@@ -15,6 +15,8 @@ All GMU RTL implements Elephant **v1**, so the v2 core is our own port of GMU's 
 | `core_v2` (our v1→v2 port), Questa 2026.1 | passes every v2 set: random 1000, edge 374, full33 2178, long 10, badtag 374 |
 | GHDL | commands written, **never run** (not installed on the NCSU machine) |
 | Baseline benchmark, xc7a100tftg256-2L | `core_v2`: 90.5 MHz, 2918 LUT, 1079 FF; plaintext 539 Mbps long, 219 Mbps at 16 B; 184.8 Kbps/LUT. See `reports/benchmark.csv` |
+| Rounds-per-cycle sweep | `core_v2_r1/r4/r5/r8/r16` (`core_v2` with only `PERM_ROUNDS_PER_CYCLE` changed), all benchmarked |
+| `core_v2_r4_optB` (option B: I/O overlapped with the permutation, on `core_v2_r4`) | passes every v2 set. vs `core_v2_r4`: 50.74 → 42.81 cycles per PT block, 28.08 → 22.06 per AD block; 184.3 MHz, 1882 LUT, 1243 FF; 689 Mbps long PT, 366 Kbps/LUT. See `rtl/core_v2_r4_optB/OPT_B.md` |
 
 Not done yet:
 - Spongent permutation unit testbench (`tb/unit/`) and the C trace tool (per-permutation state dumps).
@@ -49,8 +51,10 @@ after that, day-to-day work is just `make sim`.
 | `rtl/lwc/` | GMU LWC wrapper, shared and frozen |
 | `rtl/core_v1/` | GMU arch-1 core, unmodified: the known-good v1 hardware |
 | `rtl/core_v2/` | Dumbo v2 core, ported from core_v1 (see `rtl/core_v2/V2_PORT.md`): **the benchmark baseline** |
-| `rtl/core_v2_opt*/` | Optimized v2 cores, one directory each (see Benchmarking) |
-| `rtl/core_v2_r1/` | Reference only: `core_v2` at 1 round per cycle, to compare with `Elephant_GMU` in ePrint 2023/484 |
+| `rtl/ACCELERATION.md` | Speed-up options A–D (unroll, I/O overlap, two units, pipelining): which files each touches and how |
+| `rtl/core_v2_r*/` | Reference only: `core_v2` at 1, 4, 5, 8 or 16 rounds per cycle (see each `REFERENCE.md`). `r1` compares with `Elephant_GMU` in ePrint 2023/484 |
+| `rtl/core_v2_r4_optB/` | Option B on `core_v2_r4`: AD and message I/O overlapped with the permutation (see `OPT_B.md`) |
+| `rtl/core_v2[_rN]_opt*/` | Further optimized v2 cores, one directory each (see Benchmarking) |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |
 | `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py` |
@@ -104,7 +108,7 @@ testbench are unchanged.
 | To change… | Edit |
 |---|---|
 | The baseline v2 hardware | Don't: `rtl/core_v2/` is the baseline every speedup is measured against |
-| An optimized core | `rtl/core_v2_optN/*.vhd`; new files go in its `filelist.txt` (compile order), busy probes in its `profile.txt` |
+| An optimized core | `rtl/core_v2[_rN]_optN/*.vhd`; new files go in its `filelist.txt` (compile order), busy probes in its `profile.txt` |
 | Vector lengths / sets / seed | `AD_LENS`, `PT_LENS`, `LONG`, `--seed`, `--sets` in `scripts/gen_kat.py` (`SETS` in the `Makefile` for `sim-all`) |
 | cryptotvgen parameters (sizes, I/O width) | `COMMON` in `scripts/gen_kat.py`; must match the algorithm's `api.h` |
 | Testbench or wrapper | Avoid. `tb/` and `rtl/lwc/` are upstream and shared by both specs; change only with a reason and note it in the `UPSTREAM.md` |
@@ -122,6 +126,9 @@ same vectors, the same part and the same flow.
 **Start a new core:** `cp -r rtl/core_v2 rtl/core_v2_opt1`, then fix the paths in
 `rtl/core_v2_opt1/filelist.txt` (`core_v2` → `core_v2_opt1`) and edit the VHDL. Keep the entity name
 `CryptoCore` (the wrapper instantiates it). If you add or rename permutation units, update `profile.txt`.
+To isolate one optimization, copy the `core_v2_rN` with the same rounds per cycle instead, name the result
+`core_v2_rN_<opt>` (e.g. `core_v2_r4_optB`), and compare it against that `core_v2_rN`.
+`rtl/ACCELERATION.md` lists the options and the files each one touches.
 
 | Step | Command | Output |
 |---|---|---|
@@ -181,6 +188,9 @@ in `reports/README.md`.
 - **Generated vectors are gitignored** (`kat/*/gen/*/`); only `kat/v1/gmu/` is tracked.
 - **cryptotvgen `--gen_custom` flags must be `1`/`0`.** It reads the string `False` as true for NEW_KEY, so
   `True,False,...` vectors silently loaded a new key for almost every message (fixed 2026-11-19).
+- **Random-stall mode (`TESTMODE=1`) doesn't complete,** even on GMU's unmodified `core_v1` (edge set: no
+  vectors done after 240 s, against 25 s normally). It also hangs on `core_v2_r4`. Until that is understood, it can't
+  validate backpressure handling. All validation uses the default mode 0 (no stalls).
 - **`PERM_ROUNDS_PER_CYCLE`** (in each core's `elephant_constants.vhd`, 10 in `core_v1`/`core_v2`): only 1, 4, 5,
   8, 10 and 16 work. `elephant_perm.vhd` has round-constant tables only for these; other divisors of 80
   (e.g. 2) compile but give wrong results.

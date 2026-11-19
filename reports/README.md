@@ -4,6 +4,9 @@ What each CSV in this folder holds, column by column, and why we track it. Every
 (`rtl/core_<core>/`). `v2` is the baseline that every other core is compared against.
 `v2_r1` is a reference point, not an optimization: `core_v2` at one round per cycle, the configuration of
 `Elephant_GMU` in GMU's benchmark paper (see `rtl/core_v2_r1/REFERENCE.md`).
+`v2_r4`, `v2_r5`, `v2_r8` and `v2_r16` are the same kind of reference: `core_v2` at other unroll factors.
+A core named `v2_rN_<opt>` (e.g. `v2_r4_optB`) applies one optimization to `core_v2_rN`. Judge its gain against
+that `v2_rN` row, not against `v2` (the `x_` columns are always relative to `v2`).
 
 | File | Written by | One row per |
 |---|---|---|
