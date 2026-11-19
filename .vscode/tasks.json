@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    { "id": "spec", "type": "pickString", "description": "Spec", "options": ["v2", "v1"], "default": "v2" },
+    { "id": "set",  "type": "pickString", "description": "Vector set",
+      "options": ["edge", "random", "long", "badtag", "gmu"], "default": "edge" }
+  ],
+  "tasks": [
+    { "label": "make models", "type": "shell", "command": "make models", "problemMatcher": [] },
+    { "label": "make kat",    "type": "shell", "command": "make kat SPEC=${input:spec}", "problemMatcher": [] },
+    { "label": "make sim",    "type": "shell", "command": "make sim SPEC=${input:spec} SET=${input:set}", "problemMatcher": [] },
+    { "label": "make sim-all","type": "shell", "command": "make sim-all SPEC=${input:spec}", "problemMatcher": [] },
+    { "label": "make synth",  "type": "shell", "command": "make synth", "problemMatcher": [] }
+  ]
+}

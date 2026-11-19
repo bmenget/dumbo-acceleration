@@ -1,0 +1,40 @@
+# Cloned upstream repos (populated by `make fetch`)
+ref/*
+!ref/.gitkeep
+
+# Generated, reproducible from scripts (make models / make kat)
+model/lib/
+kat/*/gen/*/
+cryptotvgen.log
+
+# Build outputs
+build/
+transcript
+work/
+*.o
+*.cf
+*.ghw
+*.vcd
+*.fst
+
+# Vivado
+*.xpr
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.jou
+*.log
+*.str
+.Xil/
+vivado*.backup.*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/settings.json
+.DS_Store
