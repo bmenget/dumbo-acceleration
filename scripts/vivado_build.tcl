@@ -1,5 +1,5 @@
 # Out-of-context synthesis + implementation of the LWC top for one design point and one clock target.
-# Called by scripts/synth_sweep.py; can also be run by hand:
+# Called by scripts/synth.py; can also be run by hand:
 #   vivado -mode batch -nojournal -nolog -source scripts/vivado_build.tcl \
 #          -tclargs <filelist.txt> <period_ns> <outdir> <part> <top>
 #

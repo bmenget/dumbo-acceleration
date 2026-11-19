@@ -1,10 +1,13 @@
 # Elephant Dumbo (v2) FPGA project
 #
-# SPEC selects the algorithm version end to end:
-#   v1 = Elephant v1 (GMU's RTL, known good; the control experiment)
-#   v2 = Dumbo v2    (our target)
+# CORE selects the RTL: rtl/core_<CORE>/ (filelist.txt in compile order).
+#   v1        Elephant v1, GMU arch-1, unmodified: the validation control
+#   v2        Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
+#   v2_opt1   ... optimized v2 cores (copy core_v2, then edit)
+# The spec (C model and vectors) is the part before the first '_': v2_opt1 is checked against v2.
+# SPEC=v1 / SPEC=v2 still works as a shorthand for CORE=v1 / CORE=v2.
 #
-# SET picks the vector set for `make sim` (sim-all runs every set for the SPEC):
+# SET picks the vector set for `make sim` (sim-all runs every validation set for the spec):
 #   gmu     v1 only. GMU's shipped 3201 vectors. Use to confirm the flow/simulator/testbench
 #           work on known-good hardware (core_v1) before trusting anything else.
 #   random  1000 random enc/dec vectors, AD/PT up to 1000 B, with key reuse. General
@@ -17,50 +20,55 @@
 #           indexing and counter-width bugs that short vectors miss.
 #   badtag  Decrypt with one tag bit flipped; expects plaintext then a failure status.
 #           Use after touching the tag compare / final-permutation path.
-#   cycles  v2 only. 75 vectors on an (AD, PT) grid for cycle counting; run it via `make cycles`.
+#   cycles  81 vectors on an (AD, PT) grid incl. 16+16 and 1536+1536; used by `make cycles`.
+#   prof_short, prof_long   one workload each (16+16 B, 1536+1536 B); used by `make profile`.
 #
-# ROUNDS (optional) sets PERM_ROUNDS_PER_CYCLE for `make sim`: a copy of the RTL with that value is
-#   made under build/rtl/ and simulated; rtl/ is never edited. Supported: 1,4,5,8,10,16 (the permutation
-#   only has round-constant tables for these; others, e.g. 2, give wrong results).
+# Benchmark flow for a core (all write results keyed by CORE):
+#   make sim-all CORE=v2_opt1        1. validate: must PASS before any number below means anything
+#   make cycles  CORE=v2_opt1        2. measured cycles per message -> build/sim/questa/<core>/cycles/timing.csv
+#   make profile CORE=v2_opt1 WL=long   3. where the cycles go (permutation busy / I/O / idle) -> reports/profile.csv
+#   make synth   CORE=v2_opt1        4. Fmax and area (source ./setup.sh vivado first) -> reports/synth_results.csv
+#   make report                      5. every core vs the baseline -> reports/benchmark.csv
 #
-#   Unset = the value in rtl/ (upstream 10). Verify a ROUNDS value in sim before synthesizing it.
-# SWEEP (for `make synth`) is the list of ROUNDS values to implement in Vivado, e.g. SWEEP="1 4".
-#
-# Examples:
+# Other examples:
 #   make models                      build C models into model/lib, check v2 vs official KAT
-#   make kat SPEC=v1                 generate kat/v1/gen/{random,edge,full33,long,badtag}
-#   make sim SPEC=v1 SET=gmu         run LWC_TB on core_v1 with GMU's shipped vectors
-#   make sim SPEC=v2 SET=edge        run LWC_TB on core_v2 with generated vectors (see SET above)
-#   make sim-all SPEC=v1             every set for that SPEC
-#   make sim SPEC=v2 ROUNDS=1        same, with 1 round per cycle (80 cycles per permutation)
+#   make kat SPEC=v2                 generate kat/v2/gen/<set> for every set
+#   make sim CORE=v1 SET=gmu         run LWC_TB on core_v1 with GMU's shipped vectors
 #   make sim SIM=ghdl ...            use GHDL instead of Questa (default: questa; source ./setup.sh)
-#   make synth SPEC=v2 SWEEP="1 4"   Vivado Fmax/area for those ROUNDS (source ./setup.sh vivado first);
-#                                    also appends modelled cycles/throughput to reports/perf_model.csv
-#   make cycles SPEC=v2 ROUNDS=4     measure cycles in simulation and check them against the cycle model
 
-SPEC ?= v2
+SPEC_DEFAULT := v2
+ifeq ($(origin CORE),undefined)
+CORE := $(if $(SPEC),$(SPEC),$(SPEC_DEFAULT))
+endif
+CORE_SPEC := $(firstword $(subst _, ,$(CORE)))
+ifneq ($(SPEC),)
+ifneq ($(SPEC),$(CORE_SPEC))
+$(error CORE=$(CORE) implements spec $(CORE_SPEC), but SPEC=$(SPEC))
+endif
+endif
+SPEC := $(CORE_SPEC)
 SET  ?= edge
 SIM  ?= questa
-ROUNDS ?=
-SWEEP  ?= 
+WL   ?= long
 TESTMODE ?=
+VSIM_DO    ?= run -all; quit -f
+VSIM_FLAGS ?=
 
 ALGO_v1 := elephant160v1
 ALGO_v2 := elephant160v2
 ALGO    := $(ALGO_$(SPEC))
 ifeq ($(ALGO),)
-$(error SPEC must be v1 or v2, got '$(SPEC)')
+$(error CORE must start with v1 or v2, got '$(CORE)')
+endif
+COREDIR  := rtl/core_$(CORE)
+ifeq ($(wildcard $(COREDIR)/filelist.txt),)
+$(error $(COREDIR)/filelist.txt not found (CORE=$(CORE)))
 endif
 
 PY       := .venv/bin/python
 TOP      := LWC_TB
-ifeq ($(ROUNDS),)
-SRCS     := $(shell cat rtl/core_$(SPEC)/filelist.txt tb/filelist.txt)
-CFG      := $(SPEC)
-else
-SRCS     := $(shell python3 scripts/prep_rtl.py --spec $(SPEC) --rounds $(ROUNDS) --out build/rtl/$(SPEC)_r$(ROUNDS)) $(shell cat tb/filelist.txt)
-CFG      := $(SPEC)_r$(ROUNDS)
-endif
+SRCS     := $(shell cat $(COREDIR)/filelist.txt tb/filelist.txt)
+CFG      := $(CORE)
 # GMU's set exists only for v1; generated sets live under gen/.
 KATDIR   := $(if $(filter gmu,$(SET)),kat/$(SPEC)/gmu,kat/$(SPEC)/gen/$(SET))
 SETS     := $(if $(filter v1,$(SPEC)),gmu) random edge full33 long badtag
@@ -81,10 +89,10 @@ TB_GENERICS := G_FNAME_PDI=$(ABS)/$(KATDIR)/pdi.txt \
 GHDL      ?= ghdl
 GHDLFLAGS ?= --std=08 -frelaxed --workdir=$(ABS)/build/ghdl/$(CFG)
 
-.PHONY: help venv models kat sim sim-all cycles synth bench clean
+.PHONY: help venv models kat sim sim-all cycles profile synth report clean
 
 help:
-	@sed -n '3,/^SPEC ?=/p' Makefile | grep -v '^SPEC ?=' | sed 's/^# \{0,1\}//'
+	@sed -n '3,/^SPEC_DEFAULT :=/p' Makefile | grep -v '^SPEC_DEFAULT' | sed 's/^# \{0,1\}//'
 
 # ---- C models and vectors ------------------------------------------------
 venv: .venv/bin/cryptotvgen
@@ -114,29 +122,43 @@ ifeq ($(SIM),ghdl)
 else ifeq ($(SIM),questa)
 	cd $(SIMDIR) && vlib work >/dev/null && \
 	  vcom -2008 -quiet $(addprefix $(ABS)/,$(SRCS)) && \
-	  vsim -c -quiet $(addprefix -g,$(TB_GENERICS)) $(TOP) -do "run -all; quit -f" > sim.out 2>&1 || true
+	  vsim -c -quiet $(VSIM_FLAGS) $(addprefix -g,$(TB_GENERICS)) $(TOP) -do "$(VSIM_DO)" > sim.out 2>&1 || true
 else
 	$(error SIM must be ghdl or questa)
 endif
 	@scripts/sim_result.sh $(SIMDIR) $(CFG) $(SET)
 
 sim-all:
-	@for s in $(SETS); do $(MAKE) --no-print-directory sim SPEC=$(SPEC) SET=$$s SIM=$(SIM) || exit 1; done
+	@for s in $(SETS); do $(MAKE) --no-print-directory sim CORE=$(CORE) SET=$$s SIM=$(SIM) || exit 1; done
 
-# Cycle counts from LWC_TB's own timing mode (G_TEST_MODE=4) -> build/sim/<sim>/<cfg>/cycles/timing.csv,
-# then compare with the model in scripts/cycle_model.py. SPEC=v2 only; ROUNDS selects PERM_ROUNDS_PER_CYCLE.
+# ---- Benchmarking -----------------------------------------------------------
+# Measured cycles from LWC_TB's own timing mode (G_TEST_MODE=4): one row per message in
+# build/sim/<sim>/<core>/cycles/timing.csv. v2 cores only (the vector set is v2).
 cycles:
-	@$(MAKE) --no-print-directory sim SPEC=$(SPEC) SET=cycles TESTMODE=4 ROUNDS=$(ROUNDS) SIM=$(SIM)
-	@python3 scripts/cycle_model.py --validate
+	@test "$(SPEC)" = v2 || { echo "make cycles: v2 cores only"; exit 1; }
+	@$(MAKE) --no-print-directory sim CORE=$(CORE) SET=cycles TESTMODE=4 SIM=$(SIM)
 
-# ---- Implementation / benchmarking ----------------------------------------
+# Where the cycles go: dumps the core's busy signals (rtl/core_<core>/profile.txt) and its data
+# handshakes to a VCD while running prof_<WL>, then classifies every clock cycle. Questa only.
+PROF_DO := $(ABS)/build/prof/$(CORE).do
+profile:
+	@test "$(SIM)" = questa || { echo "make profile: needs SIM=questa"; exit 1; }
+	@test -f $(COREDIR)/profile.txt || { echo "make profile: $(COREDIR)/profile.txt missing (see scripts/profile.py)"; exit 1; }
+	@mkdir -p build/prof && python3 scripts/profile.py do --core $(CORE) --out $(PROF_DO)
+	@$(MAKE) --no-print-directory sim CORE=$(CORE) SET=prof_$(WL) SIM=questa \
+	  VSIM_FLAGS=-voptargs=+acc VSIM_DO="do $(PROF_DO)"
+	@python3 scripts/profile.py parse --core $(CORE) --workload $(WL) \
+	  --vcd build/sim/questa/$(CORE)/prof_$(WL)/prof.vcd
+
+# ---- Implementation -------------------------------------------------------
 # Needs Vivado on PATH (source ./setup.sh vivado). Prints a line per Vivado run; results go to
-# reports/synth_results.csv (one row per design point) and reports/synth_runs.csv (every run).
+# reports/synth_results.csv (one row per synthesis of a core) and reports/synth_runs.csv (every run).
 synth:
-	python3 scripts/synth_sweep.py --spec $(SPEC) --rounds $(SWEEP)
+	python3 scripts/synth.py --core $(CORE)
 
-bench:
-	$(PY) scripts/collect_results.py
+# Every v2 core with measured cycles, joined with its latest synthesis, against the baseline core_v2.
+report:
+	python3 scripts/report.py
 
 clean:
 	rm -rf build

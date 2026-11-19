@@ -1,0 +1,3 @@
+date,core,workload,window_cycles,busy_io_pct,busy_pct,io_pct,neither_pct,any_busy_pct,unit_busy,units_concurrent,in_words,out_words
+2026-11-19T01:44:31,v2,long,6680,0.0,55.6,23.2,21.2,55.7,perm=3720,0:44.3% 1:55.7%,1548,770
+2026-11-19T01:44:43,v2,short,144,2.1,47.9,18.8,31.2,50.0,perm=72,0:50.0% 1:50.0%,28,10

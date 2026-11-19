@@ -1,0 +1,6 @@
+core,workload,ad_bytes,msg_bytes,cycles,fmax_mhz,luts,latency_us,throughput_mbps,mbps_per_klut,speedup_cycles,speedup_throughput,speedup_mbps_per_klut,synth_commit,synth_date,cycles_date,checks
+v2,short_16+16,16,16,69,74.3,2920,0.929,275.7,94.4,1.00,1.00,1.00,a67e3e4+dirty,2026-11-19T01:54:15,2026-11-19T01:46:02,dirty
+v2,short_64+64,64,64,182,74.3,2920,2.450,418.0,143.2,1.00,1.00,1.00,a67e3e4+dirty,2026-11-19T01:54:15,2026-11-19T01:46:02,dirty
+v2,long_1536+1536,1536,1536,3337,74.3,2920,44.913,547.2,187.4,1.00,1.00,1.00,a67e3e4+dirty,2026-11-19T01:54:15,2026-11-19T01:46:02,dirty
+v2,msg_0+1536,0,1536,2105,74.3,2920,28.331,433.7,148.5,1.00,1.00,1.00,a67e3e4+dirty,2026-11-19T01:54:15,2026-11-19T01:46:02,dirty
+v2,ad_1536+0,1536,0,1285,74.3,2920,17.295,710.5,243.3,1.00,1.00,1.00,a67e3e4+dirty,2026-11-19T01:54:15,2026-11-19T01:46:02,dirty

@@ -1,27 +1,24 @@
 # Elephant Dumbo (v2) on FPGA
 
 ECE545 final project: implement, optimize, verify and benchmark Elephant **Dumbo v2**
-(Spongent-π[160]) on a Xilinx FPGA, compared against GMU's Elephant **v1** RTL.
+(Spongent-π[160]) on a Xilinx FPGA. The baseline is our unmodified v2 port (`core_v2`).
 
 **Naming:** `v1` / `v2` always means the *algorithm spec* (Elephant v1 vs the v2 finalist).
 GMU's hardware variants (their `src_rtl/v1..v4`) are all spec v1; we call them arch1–arch4.
 All GMU RTL implements Elephant **v1**, so the v2 core is our own port of GMU's arch-1 core.
 
-## Status (2026-11-18)
+## Status (2026-11-19)
 | Item | State |
 |---|---|
 | v2 C model vs official KAT | 1089/1089 (encrypt, decrypt round-trip, forged tag rejected) |
 | `core_v1` (GMU arch-1, unmodified), Questa 2026.1 | passes every v1 set: gmu 3201, random 1000, edge 374, full33 2178, long 10, badtag 374 |
 | `core_v2` (our v1→v2 port), Questa 2026.1 | passes every v2 set: random 1000, edge 374, full33 2178, long 10, badtag 374 |
 | GHDL | commands written, **never run** (not installed on the NCSU machine) |
-| Synthesis (Vivado 2026.1) | `make synth` works; first sweep of core_v2 done at ROUNDS 1 and 4 (see Benchmarking). core_v1 not yet synthesized |
+| Baseline benchmark, xc7a100tcsg324-1 | `core_v2`: 74.3 MHz, 2920 LUT, 1079 FF; 69 cycles (16+16 B), 3337 cycles (1536+1536 B). See `reports/benchmark.csv` |
 
 Not done yet:
 - Spongent permutation unit testbench (`tb/unit/`) and the C trace tool (per-permutation state dumps).
-- `collect_results.py` / `make bench`, optimization of the permutation.
 - Mutation test (deliberately breaking the RTL to confirm the vectors catch it).
-- `PERM_ROUNDS_PER_CYCLE` in `rtl/` is the upstream value (10, i.e. 8 cycles per permutation) in both
-  cores. Only 1, 4, 5, 8, 10 and 16 are supported (see Benchmarking).
 
 ## Quick start
 ```sh
@@ -30,32 +27,33 @@ make fetch                          # clone pinned upstream sources into ref/ (n
 make models                         # venv + cryptotvgen, build C models, check v2 against the official KAT
 make kat SPEC=v1                    # generate vectors into kat/v1/gen/
 make kat SPEC=v2                    # generate vectors into kat/v2/gen/
-make sim SPEC=v2 SET=edge           # run the testbench on core_v2 (about 25 s)
-make sim-all SPEC=v2                # every vector set for v2 (about 4 min)
-make sim SPEC=v1 SET=gmu            # core_v1 with GMU's own shipped vectors
-make sim SPEC=v2 ROUNDS=4 SET=edge  # same, with 4 permutation rounds per cycle (copy of the RTL; rtl/ untouched)
-make sim SIM=ghdl SPEC=v2 SET=edge  # GHDL instead of Questa
-make synth SPEC=v2 SWEEP="1 4"       # Vivado Fmax/area for those ROUNDS (needs `source ./setup.sh vivado`)
-make cycles SPEC=v2 ROUNDS=4         # cycles from LWC_TB's timing mode, checked against the cycle model
+make sim CORE=v2 SET=edge           # run the testbench on core_v2 (about 25 s)
+make sim-all CORE=v2                # every validation set (about 4 min)
+make sim CORE=v1 SET=gmu            # core_v1 with GMU's own shipped vectors
+make sim SIM=ghdl CORE=v2 SET=edge  # GHDL instead of Questa
 make help                           # target list and what each SET is for
 ```
-`SPEC` (`v1` or `v2`) picks the C model, the core and the vectors; everything else is shared.
+`CORE` picks the RTL (`rtl/core_<CORE>/`); the part before the first `_` is the spec, which picks the
+C model and vectors (`v2_opt1` is checked against v2). `SPEC=v1`/`SPEC=v2` still work as shorthand
+for `CORE=v1`/`CORE=v2`.
 `models` and `kat` are one-time per checkout (their outputs are gitignored and reproducible);
 after that, day-to-day work is just `make sim`.
 
 ## Layout
 | Path | Purpose |
 |---|---|
+| `DUMBO_V2.md` | How Dumbo v2 works: algorithm, computational profile, and how `core_v2` schedules it |
 | `setup.sh` | Source it to load Questa (and optionally Vivado) via `module` |
 | `ref/` | Upstream clones from `make fetch` (gitignored; read-only, for diffs) |
 | `model/` | C reference models for v1 and v2, SUPERCOP layout (see `model/UPSTREAM.md`); `model/lib/` is built output |
 | `rtl/lwc/` | GMU LWC wrapper, shared and frozen |
 | `rtl/core_v1/` | GMU arch-1 core, unmodified: the known-good v1 hardware |
-| `rtl/core_v2/` | Dumbo v2 core, ported from core_v1 (see `rtl/core_v2/V2_PORT.md`) |
+| `rtl/core_v2/` | Dumbo v2 core, ported from core_v1 (see `rtl/core_v2/V2_PORT.md`): **the benchmark baseline** |
+| `rtl/core_v2_opt*/` | Optimized v2 cores, one directory each (see Benchmarking) |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |
-| `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `prep_rtl.py`, `vivado_build.tcl`, `synth_sweep.py` |
-| `reports/` | `synth_results.csv` (one row per design point), `synth_runs.csv` (every Vivado run), `perf_model.csv` (design point x workload: modelled cycles, latency, throughput) |
+| `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py` |
+| `reports/` | `benchmark.csv` (every core vs baseline), `profile.csv` (cycle breakdown), `synth_results.csv`, `synth_runs.csv` |
 | `docs/` | AI usage log (required by the course), spec PDFs for Elephant v1/v2 and the NIST final-round report |
 
 Provenance of copied files (source repo and commit) is in `rtl/UPSTREAM.md`, `tb/UPSTREAM.md`
@@ -73,7 +71,7 @@ make sim      LWC_TB drives pdi/sdi into the RTL and compares each output word t
 2. **`make kat SPEC=…`**: `scripts/gen_kat.py` has cryptotvgen call the C model to produce
    `pdi.txt` (public inputs), `sdi.txt` (keys) and `do.txt` (expected outputs, computed by the C
    model). Fixed seed, so it is reproducible. `badtag` is derived from `edge` by flipping tag bits.
-3. **`make sim SPEC=… SET=…`**: compiles `rtl/core_<spec>/filelist.txt` + `tb/filelist.txt` and runs
+3. **`make sim CORE=… SET=…`**: compiles `rtl/core_<core>/filelist.txt` + `tb/filelist.txt` and runs
    `LWC_TB`. Questa is the default simulator. The comparison happens *inside* the simulation:
    - `LWC_TB` reads `pdi.txt`/`sdi.txt` and drives them into the design over the LWC interface.
    - Each 32-bit word the design outputs is compared to the next word of `do.txt`.
@@ -83,10 +81,10 @@ make sim      LWC_TB drives pdi/sdi into the RTL and compares each output word t
      prints a PASS / FAIL / ERROR banner, with the number of vectors verified.
    - The design's raw output is not saved, so there is no output file to diff by hand.
 
-Output goes to `build/sim/<sim>/<spec>/<set>/`: `log.txt`, `failed_test_vectors.txt`, `result.txt`,
-`sim.out` (full simulator transcript), `timing.csv` (empty, see Status).
+Output goes to `build/sim/<sim>/<core>/<set>/`: `log.txt`, `failed_test_vectors.txt`, `result.txt`,
+`sim.out` (full simulator transcript), `timing.csv` (filled only by `make cycles`).
 
-**`SPEC=v1` is the control:** GMU's core must always pass. If `core_v2` fails and v1 passes, the bug is
+**`CORE=v1` is the control:** GMU's core must always pass. If `core_v2` fails and v1 passes, the bug is
 in `core_v2`, not the models, vectors or testbench.
 
 
@@ -104,87 +102,72 @@ testbench are unchanged.
 ## Where to edit
 | To change… | Edit |
 |---|---|
-| The v2 hardware | `rtl/core_v2/*.vhd` (add new files to `rtl/core_v2/filelist.txt`, in compile order) |
+| The baseline v2 hardware | Don't: `rtl/core_v2/` is the baseline every speedup is measured against |
+| An optimized core | `rtl/core_v2_optN/*.vhd`; new files go in its `filelist.txt` (compile order), busy probes in its `profile.txt` |
 | Vector lengths / sets / seed | `AD_LENS`, `PT_LENS`, `LONG`, `--seed`, `--sets` in `scripts/gen_kat.py` (`SETS` in the `Makefile` for `sim-all`) |
 | cryptotvgen parameters (sizes, I/O width) | `COMMON` in `scripts/gen_kat.py`; must match the algorithm's `api.h` |
 | Testbench or wrapper | Avoid. `tb/` and `rtl/lwc/` are upstream and shared by both specs; change only with a reason and note it in the `UPSTREAM.md` |
 | Simulator flags | the `SIM` default, `GHDLFLAGS` and the `questa` branch in the `Makefile` |
 | PASS/FAIL banner | `scripts/sim_result.sh` (`NO_COLOR=1` disables color) |
 
-Dev loop: edit `core_v2` → `make sim SPEC=v2 SET=edge` → `make sim-all SPEC=v2` →
-`make sim-all SPEC=v1` (regression). On a failure, read
-`build/sim/<sim>/<spec>/<set>/failed_test_vectors.txt`.
+Dev loop: edit `core_v2_opt1` → `make sim CORE=v2_opt1 SET=edge` → `make sim-all CORE=v2_opt1`.
+On a failure, read `build/sim/<sim>/<core>/<set>/failed_test_vectors.txt`. If something shared changed
+(testbench, wrapper, vectors), re-run `make sim-all CORE=v2` and `make sim-all CORE=v1` too.
 
-## Benchmarking (Fmax and area)
-`make synth SPEC=v2 SWEEP="1 4"` runs Vivado (needs `source ./setup.sh vivado`) on the LWC top, wrapper plus
-core, for each `PERM_ROUNDS_PER_CYCLE` value in `SWEEP`:
-- **Part and flow (fixed for every point):** `xc7a12tcpg238-3` (Artix-7 12T, set at the top of
-  `scripts/synth_sweep.py`); out-of-context synth, then opt, place, phys_opt, route. No I/O constraints, so
-  only paths inside the design are timed.
+## Benchmarking
+Every optimized core lives in its own directory and is measured against the baseline `core_v2` with the
+same vectors, the same part and the same flow.
+
+**Start a new core:** `cp -r rtl/core_v2 rtl/core_v2_opt1`, then fix the paths in
+`rtl/core_v2_opt1/filelist.txt` (`core_v2` → `core_v2_opt1`) and edit the VHDL. Keep the entity name
+`CryptoCore` (the wrapper instantiates it). If you add or rename permutation units, update `profile.txt`.
+
+| Step | Command | Output |
+|---|---|---|
+| 1. Validate | `make sim-all CORE=v2_opt1` | must PASS; every number below assumes it |
+| 2. Cycles | `make cycles CORE=v2_opt1` | `build/sim/questa/<core>/cycles/timing.csv` |
+| 3. Profile | `make profile CORE=v2_opt1 WL=long` (and `WL=short`) | `reports/profile.csv` |
+| 4. Fmax, area | `make synth CORE=v2_opt1` (`source ./setup.sh vivado`) | `reports/synth_results.csv` |
+| 5. Compare | `make report` | `reports/benchmark.csv` |
+
+**Cycles (`make cycles`).** Runs the `cycles` vector set (81 vectors: an AD x PT grid plus 16+16 and 64+64)
+with `LWC_TB` in its timing mode (`G_TEST_MODE=4`). Each row of `timing.csv` is one message: sizes, new key
+or not, and the execution time in cycles from the first input word accepted to the final status word. The
+run checks every output too, so wrong RTL fails instead of giving numbers.
+
+**Profile (`make profile`).** Answers "where do the cycles go?" for one workload: `WL=short` (16+16 B) or
+`WL=long` (1536+1536 B), each an encrypt with a new key plus a decrypt with the same key. Questa dumps a VCD
+of the core's data handshakes and its busy probes, and `scripts/profile.py` classifies every cycle:
+- `busy+io`: a permutation unit is busy *and* a word moves in or out (the overlap an optimization wants)
+- `busy`: a unit is busy, no I/O
+- `io`: I/O only
+- `neither`: control or waiting
+
+It also reports how busy each unit is and how often several units are busy at once. Probes come from
+`rtl/core_<core>/profile.txt` (`<label> <path below the CryptoCore instance>`, one per permutation unit,
+each a `std_logic` that is '1' exactly when that unit computes rounds). Baseline, long workload: 55.7% busy,
+0.0% busy+io, 23.2% io only, 21.2% neither. The baseline never overlaps I/O with the permutation.
+
+**Fmax and area (`make synth`).**
+- **Part and flow (fixed for every core):** `xc7a100tcsg324-1` (Artix-7 100T, speed grade -1, the project
+  target; set at the top of `scripts/synth.py`); out-of-context synth, then opt, place, phys_opt, route.
+  No I/O constraints, so only paths inside the design are timed.
 - **Fmax search:** Vivado reports slack, not a maximum frequency, so the script retargets the clock from the
   achieved slack (`period - WNS`) until timing is met within 3% of the target (default start 6 ns, up to 5
-  runs). Fmax = 1000 / (period - WNS) from the fastest run that met timing. A line is printed when each
-  iteration starts and finishes; the full log of each run is in `build/synth/<spec>_r<N>/p<period>/`.
-- **Rounds per cycle:** `ROUNDS` / `SWEEP` values are applied to a copy of the RTL under `build/rtl/`
-  (`scripts/prep_rtl.py`); `rtl/` is never edited. Supported values are **1, 4, 5, 8, 10, 16**:
-  `elephant_perm.vhd` only has round-constant tables for these, and other values that divide 80 (e.g. 2)
-  silently give wrong results, so `prep_rtl.py` rejects them.
-- **Verify before you synthesize:** `make sim-all SPEC=v2 ROUNDS=<n>` must pass first, so the numbers are for a
-  design that works.
-- **Results:** `reports/synth_results.csv` (one row per design point: Fmax, LUT, FF, slices, BRAM, DSP) and
-  `reports/synth_runs.csv` (every Vivado run).
+  runs). Fmax = 1000 / (period - WNS) from the fastest run that met timing. Each run's logs and reports
+  (including `timing.rpt`, with the critical path) are in `build/synth/<core>/p<period>/`.
+- **Traceability:** each row records the git commit, with `+dirty` if the core's RTL or the wrapper had
+  uncommitted changes.
+- **Run-to-run noise is about ±0.3 ns.** Treat Fmax differences under ~5% between cores as noise.
+- **Baseline critical path:** `perm_cnt_int` (round-constant select) through all 10 unrolled rounds into
+  `ms_reg_out`: 11 logic levels, 85% of the delay is routing.
 
-### First results (core_v2, xc7a12tcpg238-3, Vivado 2026.1, out-of-context)
-Both configurations pass every v2 vector set in simulation (random, edge, full33, long, badtag).
-
-| ROUNDS | cycles/perm | Target met | Fmax est. | LUT | FF | Slices | BRAM/DSP | Vivado runs |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 80 | 5.674 ns (176 MHz) | 179.9 MHz | 1546 | 1089 | 508 | 0 / 0 | 5 |
-| 4 | 20 | 6.000 ns (167 MHz) | 170.0 MHz | 1802 | 1080 | 544 | 0 / 0 | 1 |
-
-- **Fmax est.** is `1000 / (period - WNS)` from the passing run, i.e. what that run's achieved delay implies.
-  The clock actually *met* in a run is the "Target met" column; use that for conservative claims.
-- **Run-to-run noise is about ±0.3 ns.** For ROUNDS=1, a 5.813 ns target met with +0.242 ns slack but a tighter
-  5.583 ns target failed by 0.321 ns. Treat differences under ~5% between design points as noise until
-  several placements per point are compared. ROUNDS=4 converged after a single run, so it is the less
-  well-explored of the two.
-- **What limits the clock** (worst path in each report):
-  - ROUNDS=1: `CryptoCore data_cnt_int` -> `PostProcessor` FSM state (10 logic levels), a controller/wrapper
-    path, not the permutation.
-  - ROUNDS=4: `perm_cnt_int` -> `ms_reg_out` (round-constant lookup, 5 logic levels, 79% of the delay is routing).
-  So unrolling more rounds will not help until these two paths are shortened.
-- Throughput numbers for these points are in `reports/perf_model.csv` (see Cycle model below).
-
-## Cycle model (core_v2)
-`scripts/cycle_model.py` predicts the testbench's execution time (first input word accepted to final
-status word) for any AD/message length. `make cycles` measures it (`LWC_TB` with `G_TEST_MODE=4`, the
-`cycles` vector set, 75 vectors) and `python3 scripts/cycle_model.py --validate` compares: **450 measurements
-over ROUNDS 1, 4, 5, 8, 10, 16, max error 0 cycles.**
-
-```
-PC     = 80 / ROUNDS                                  cycles per permutation
-nAD    = floor((12 + AD) / 20)                        AD blocks that are permuted (block 0 is not)
-nK     = max(ceil(M / 20), 1)                         keystream permutations
-nC     = floor(M / 20) + 1                            ciphertext-MAC permutations
-cycles = (nAD + nK + nC + 1 + new_key) * PC + 18 + 8*nAD + 3*nK + 8*nC + 4*new_key
-```
-- The core runs **one permutation at a time and never overlaps I/O with it**. Each full message block costs
-  two permutations (keystream + MAC) plus 11 non-permutation cycles, i.e. `2*PC + 11`. The spec allows these
-  to run in parallel; the RTL does not use that.
-- **An empty message still runs a keystream permutation** (`nK = max(.., 1)`), one more than the spec needs.
-  It costs `PC + 3` cycles whenever the message is empty (see `perms_spec` vs `perms_hw` in the CSV).
-- Decrypt costs exactly what encrypt costs. A new key adds one permutation and 4 cycles.
-- Permutation share of the time (`perm_share` in the CSV): about 90% at ROUNDS=1 and 68-78% at ROUNDS=4,
-  so unrolling alone saturates; the 8 non-permutation cycles per block matter next.
-- Coefficients (8, 3, 8, 4, 18) were fitted to simulation, not derived by hand from every FSM state, so
-  re-run `make cycles` after any change to `CryptoCore.vhd`: `--validate` fails if the model no longer matches.
-
-`make synth` appends, for each design point, one row per workload to `reports/perf_model.csv`: modelled
-cycles with the Fmax and LUT count Vivado just measured, giving latency, throughput (Mbps, AD + message
-bytes) and Mbps per kLUT. `python3 scripts/cycle_model.py --from-results` rebuilds the CSV from
-`synth_results.csv` without running Vivado. Workloads: 16 B AD + 16 B message (with and without a new key),
-64+64 B, 1536 B message only, 1536 B AD only, 1536+1536 B. Throughput uses the model's cycle count at the
-synthesized Fmax, so it inherits the Fmax caveats above (the ±0.3 ns run-to-run noise).
+**Report (`make report`).** For every v2 core with a `cycles` run, joins its measured cycles with its most
+recent synthesis and writes `reports/benchmark.csv`. Per workload (16+16, 64+64, 1536+1536, 0+1536, 1536+0
+bytes; encryption with a reused key): cycles, Fmax, LUTs, latency, throughput (AD + message bytes per second),
+Mbps per kLUT, and speedup against `core_v2` for cycles, throughput and Mbps per kLUT. The `checks` column
+flags numbers you should not trust: `cycles_failed`, `cycles_stale` or `synth_stale` (the RTL changed after
+the measurement), `no_synth`, and `dirty`.
 
 ## Gotchas
 - **cryptotvgen** needs the `requests` module but does not declare it (`make models` installs it).
@@ -195,7 +178,12 @@ synthesized Fmax, so it inherits the Fmax caveats above (the ±0.3 ns run-to-run
 - **AD block boundaries** sit at 8, 28, 48 B (the first block holds the 12-byte nonce); PT/CT
   boundaries at 20, 40, 60 B.
 - **Generated vectors are gitignored** (`kat/*/gen/*/`); only `kat/v1/gmu/` is tracked.
+- **cryptotvgen `--gen_custom` flags must be `1`/`0`.** It reads the string `False` as true for NEW_KEY, so
+  `True,False,...` vectors silently loaded a new key for almost every message (fixed 2026-11-19).
+- **`PERM_ROUNDS_PER_CYCLE`** (in each core's `elephant_constants.vhd`, 10 in `core_v1`/`core_v2`): only 1, 4, 5,
+  8, 10 and 16 work. `elephant_perm.vhd` has round-constant tables only for these; other divisors of 80
+  (e.g. 2) compile but give wrong results.
 
 ## Toolchain
-Questa 2026.1 or GHDL (simulation), Vivado batch mode (synthesis; target xc7a12t), Python 3 venv with
-cryptotvgen 1.2.0, gcc. Not yet a git repository.
+Questa 2026.1 or GHDL (simulation), Vivado batch mode (synthesis; target xc7a100tcsg324-1), Python 3 venv with
+cryptotvgen 1.2.0, gcc.

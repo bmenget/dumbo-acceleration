@@ -15,3 +15,10 @@ Generated sets (`scripts/gen_kat.py`):
 - `long`: (AD,PT) in {(0,1536),(1536,0),(1536,1536),(0,4000),(4000,4000)}, enc + dec
 - `badtag`: `edge` with the tag of every decrypt flipped (1 bit); expected status Failure.
   Plaintext is still expected on the output: the GMU core releases it before the tag check.
+- `cycles` (v2): 81 vectors for `make cycles`. AD in {0,8,28,160,1536} x PT in {0,1,20,160,1536}, plus
+  (16,16) and (64,64); each pair as encrypt (new key), encrypt (same key), decrypt (same key).
+- `prof_short`, `prof_long` (v2): one workload each for `make profile`: encrypt (new key) + decrypt (same key)
+  of 16+16 B and 1536+1536 B.
+
+Before 2026-11-19 the custom sets passed `True`/`False` flags, which cryptotvgen misreads (most messages
+loaded a new key). They now pass `1`/`0`, so "same key" really reuses the key.

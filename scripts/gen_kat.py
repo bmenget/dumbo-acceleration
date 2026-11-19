@@ -18,6 +18,11 @@ Sets:
             status = failure
     cycles  a small (AD, PT) grid for cycle counting (`make cycles`): each pair as
             encrypt with a new key, encrypt reusing the key, and decrypt reusing the key
+    prof_short, prof_long
+            one workload each for `make profile`: encrypt (new key) + decrypt (same key)
+            of 16 B AD + 16 B PT, and of 1536 B AD + 1536 B PT
+
+cryptotvgen's --gen_custom flags must be 1/0: it reads the string "False" as true for NEW_KEY.
 
 Run with the venv python:  .venv/bin/python scripts/gen_kat.py --spec v1
 """
@@ -52,14 +57,16 @@ LONG = [(0, 1536), (1536, 0), (1536, 1536), (0, 4000), (4000, 4000)]
 # `cycles` set: spans the block-count regimes (empty, partial, exact, many blocks) in AD and PT.
 CYC_AD = [0, 8, 28, 160, 1536]
 CYC_PT = [0, 1, 20, 160, 1536]
+CYC_EXTRA = [(16, 16), (64, 64)]   # NIST LWC benchmark point and eBACS short point
+PROF = {"prof_short": (16, 16), "prof_long": (1536, 1536)}
 
 
 def custom_spec(pairs):
     """Encrypt with a new key, then decrypt with the same key (tests key reuse)."""
     vecs = []
     for ad, pt in pairs:
-        vecs.append(f"True,False,{ad},{pt},False")
-        vecs.append(f"False,True,{ad},{pt},False")
+        vecs.append(f"1,0,{ad},{pt},0")
+        vecs.append(f"0,1,{ad},{pt},0")
     return ":".join(vecs)
 
 
@@ -67,8 +74,7 @@ def cycles_spec(pairs):
     """Per pair: encrypt (new key), encrypt (same key), decrypt (same key)."""
     vecs = []
     for ad, pt in pairs:
-        vecs += [f"True,False,{ad},{pt},False", f"False,False,{ad},{pt},False",
-                 f"False,True,{ad},{pt},False"]
+        vecs += [f"1,0,{ad},{pt},0", f"0,0,{ad},{pt},0", f"0,1,{ad},{pt},0"]
     return ":".join(vecs)
 
 
@@ -138,7 +144,7 @@ def main():
     ap.add_argument("--spec", choices=ALGO, required=True)
     ap.add_argument("--seed", type=int, default=545)
     ap.add_argument("--random", type=int, default=1000, help="number of random vectors")
-    ap.add_argument("--sets", default="random,edge,full33,long,badtag,cycles")
+    ap.add_argument("--sets", default="random,edge,full33,long,badtag,cycles,prof_short,prof_long")
     a = ap.parse_args()
 
     if not (LIB / "crypto_aead" / f"{ALGO[a.spec]}.so").exists():
@@ -162,9 +168,13 @@ def main():
     if "badtag" in sets:
         make_badtag(out / "edge", out / "badtag")
     if "cycles" in sets:
-        pairs = [(ad, pt) for ad in CYC_AD for pt in CYC_PT]
+        pairs = [(ad, pt) for ad in CYC_AD for pt in CYC_PT] + CYC_EXTRA
         run_cryptotvgen(aead + ["--max_ad", "1536", "--max_d", "1536",
                                 "--gen_custom", cycles_spec(pairs)], out / "cycles", a.seed + 4)
+    for n, name in enumerate(PROF):
+        if name in sets:
+            run_cryptotvgen(aead + ["--max_ad", "1536", "--max_d", "1536",
+                                    "--gen_custom", custom_spec([PROF[name]])], out / name, a.seed + 5 + n)
 
 
 if __name__ == "__main__":
