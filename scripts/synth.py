@@ -12,8 +12,6 @@ Every iteration prints a line when it starts and when it finishes. Outputs:
   build/synth/<core>/p<period>/{vivado.log,timing.rpt,util.rpt,summary.txt}
   reports/synth_runs.csv      one row per Vivado run (appended)
   reports/synth_results.csv   one row per synthesis of a core (appended; `make report` uses the latest)
-Each row records the git commit (read-only `git rev-parse`), with "+dirty" when the core's RTL or the
-wrapper has uncommitted changes, so a number can be traced to the RTL that produced it.
 
 Usage (Vivado on PATH: `source ./setup.sh vivado`):
   python3 scripts/synth.py --core v2_opt1
@@ -29,16 +27,19 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import core_info  # noqa: E402
 
 # Fixed for every design so results are comparable. Change deliberately, not per run.
-PART = "xc7a100tcsg324-1"  # project target: Artix-7 100T, CSG324 package, speed grade -1 (Nexys/Arty A7-100T)
+PART = "xc7a100tftg256-2L"  # project target: XC7A100T-2FTG256L, the CW305 board's FPGA and the part used by
+                             # GMU's LWC finalist benchmarking (ePrint 2023/484). See reports/README.md.
 TOP = "LWC"                # wrapper + core; ports: clk, rst, pdi/sdi/do (32-bit)
 
 RUNS_CSV = ROOT / "reports" / "synth_runs.csv"
 RESULTS_CSV = ROOT / "reports" / "synth_results.csv"
-RUN_COLS = ["date", "core", "commit", "iter", "period_ns", "wns_ns", "fmax_est_mhz", "met",
+RUN_COLS = ["date", "core", "rounds", "cycles_per_perm", "iter", "period_ns", "wns_ns", "fmax_est_mhz", "met",
             "luts", "ffs", "slices", "bram_tiles", "dsps", "runtime_s", "part", "vivado"]
-RES_COLS = ["date", "core", "commit", "closed", "best_period_ns", "wns_ns", "fmax_mhz", "luts", "ffs",
+RES_COLS = ["date", "core", "rounds", "cycles_per_perm", "closed", "best_period_ns", "wns_ns", "fmax_mhz", "luts", "ffs",
             "slices", "bram_tiles", "dsps", "runs", "part", "vivado"]
 
 
@@ -89,21 +90,9 @@ def run_vivado(filelist, period, outdir):
     return float(kv["wns"]), kv["vivado"], parse_util(outdir / "util.rpt")
 
 
-def rtl_commit(core):
-    """Short commit hash, '+dirty' if the core's RTL or the wrapper differs from it. Read-only git."""
-    try:
-        h = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,
-                           text=True, check=True).stdout.strip()
-        st = subprocess.run(["git", "status", "--porcelain", "--", f"rtl/core_{core}", "rtl/lwc"],
-                            cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
-        return h + ("+dirty" if st else "")
-    except (OSError, subprocess.CalledProcessError):
-        return ""
-
-
 def synth_core(core, period0, max_iter):
     cfg = core
-    commit = rtl_commit(core)
+    rnd, cpp = core_info.rounds(core)
     flist = ROOT / "rtl" / f"core_{core}" / "filelist.txt"
     if not flist.exists():
         sys.exit(f"{flist} not found")
@@ -124,7 +113,7 @@ def synth_core(core, period0, max_iter):
         fmax_est = 1000.0 / (period - wns)
         met = wns >= 0
         row = dict(date=datetime.datetime.now().isoformat(timespec="seconds"), core=core,
-                   commit=commit, iter=it, period_ns=f"{period:.3f}", wns_ns=f"{wns:.3f}",
+                   rounds=rnd, cycles_per_perm=cpp, iter=it, period_ns=f"{period:.3f}", wns_ns=f"{wns:.3f}",
                    fmax_est_mhz=f"{fmax_est:.1f}", met=int(met), runtime_s=int(dt),
                    part=PART, vivado=vver, **util)
         append_row(RUNS_CSV, RUN_COLS, row)
@@ -149,7 +138,7 @@ def synth_core(core, period0, max_iter):
     final = best or runs[-1]
     fp, fw = float(final["period_ns"]), float(final["wns_ns"])
     res = dict(date=datetime.datetime.now().isoformat(timespec="seconds"), core=core,
-               commit=commit, closed=int(best is not None), best_period_ns=final["period_ns"],
+               rounds=rnd, cycles_per_perm=cpp, closed=int(best is not None), best_period_ns=final["period_ns"],
                wns_ns=final["wns_ns"], fmax_mhz=f"{1000.0 / (fp - fw):.1f}", runs=len(runs),
                part=PART, vivado=final["vivado"],
                **{k: final[k] for k in ("luts", "ffs", "slices", "bram_tiles", "dsps")})

@@ -14,7 +14,7 @@ All GMU RTL implements Elephant **v1**, so the v2 core is our own port of GMU's 
 | `core_v1` (GMU arch-1, unmodified), Questa 2026.1 | passes every v1 set: gmu 3201, random 1000, edge 374, full33 2178, long 10, badtag 374 |
 | `core_v2` (our v1→v2 port), Questa 2026.1 | passes every v2 set: random 1000, edge 374, full33 2178, long 10, badtag 374 |
 | GHDL | commands written, **never run** (not installed on the NCSU machine) |
-| Baseline benchmark, xc7a100tcsg324-1 | `core_v2`: 74.3 MHz, 2920 LUT, 1079 FF; 69 cycles (16+16 B), 3337 cycles (1536+1536 B). See `reports/benchmark.csv` |
+| Baseline benchmark, xc7a100tftg256-2L | `core_v2`: 90.5 MHz, 2918 LUT, 1079 FF; plaintext 539 Mbps long, 219 Mbps at 16 B; 184.8 Kbps/LUT. See `reports/benchmark.csv` |
 
 Not done yet:
 - Spongent permutation unit testbench (`tb/unit/`) and the C trace tool (per-permutation state dumps).
@@ -50,6 +50,7 @@ after that, day-to-day work is just `make sim`.
 | `rtl/core_v1/` | GMU arch-1 core, unmodified: the known-good v1 hardware |
 | `rtl/core_v2/` | Dumbo v2 core, ported from core_v1 (see `rtl/core_v2/V2_PORT.md`): **the benchmark baseline** |
 | `rtl/core_v2_opt*/` | Optimized v2 cores, one directory each (see Benchmarking) |
+| `rtl/core_v2_r1/` | Reference only: `core_v2` at 1 round per cycle, to compare with `Elephant_GMU` in ePrint 2023/484 |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |
 | `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py` |
@@ -130,7 +131,7 @@ same vectors, the same part and the same flow.
 | 4. Fmax, area | `make synth CORE=v2_opt1` (`source ./setup.sh vivado`) | `reports/synth_results.csv` |
 | 5. Compare | `make report` | `reports/benchmark.csv` |
 
-**Cycles (`make cycles`).** Runs the `cycles` vector set (81 vectors: an AD x PT grid plus 16+16 and 64+64)
+**Cycles (`make cycles`).** Runs the `cycles` vector set (81 vectors: an AD x PT grid plus plaintext-only 16 B and 64 B)
 with `LWC_TB` in its timing mode (`G_TEST_MODE=4`). Each row of `timing.csv` is one message: sizes, new key
 or not, and the execution time in cycles from the first input word accepted to the final status word. The
 run checks every output too, so wrong RTL fails instead of giving numbers.
@@ -149,25 +150,25 @@ each a `std_logic` that is '1' exactly when that unit computes rounds). Baseline
 0.0% busy+io, 23.2% io only, 21.2% neither. The baseline never overlaps I/O with the permutation.
 
 **Fmax and area (`make synth`).**
-- **Part and flow (fixed for every core):** `xc7a100tcsg324-1` (Artix-7 100T, speed grade -1, the project
-  target; set at the top of `scripts/synth.py`); out-of-context synth, then opt, place, phys_opt, route.
+- **Part and flow (fixed for every core):** `xc7a100tftg256-2L` (XC7A100T-2FTG256L: the CW305 board's FPGA
+  and the part GMU used to benchmark the LWC finalists; set at the top of `scripts/synth.py`; alternatives in
+  `reports/README.md`); out-of-context synth, then opt, place, phys_opt, route.
   No I/O constraints, so only paths inside the design are timed.
 - **Fmax search:** Vivado reports slack, not a maximum frequency, so the script retargets the clock from the
   achieved slack (`period - WNS`) until timing is met within 3% of the target (default start 6 ns, up to 5
   runs). Fmax = 1000 / (period - WNS) from the fastest run that met timing. Each run's logs and reports
   (including `timing.rpt`, with the critical path) are in `build/synth/<core>/p<period>/`.
-- **Traceability:** each row records the git commit, with `+dirty` if the core's RTL or the wrapper had
-  uncommitted changes.
 - **Run-to-run noise is about ±0.3 ns.** Treat Fmax differences under ~5% between cores as noise.
 - **Baseline critical path:** `perm_cnt_int` (round-constant select) through all 10 unrolled rounds into
   `ms_reg_out`: 11 logic levels, 85% of the delay is routing.
 
 **Report (`make report`).** For every v2 core with a `cycles` run, joins its measured cycles with its most
-recent synthesis and writes `reports/benchmark.csv`. Per workload (16+16, 64+64, 1536+1536, 0+1536, 1536+0
-bytes; encryption with a reused key): cycles, Fmax, LUTs, latency, throughput (AD + message bytes per second),
-Mbps per kLUT, and speedup against `core_v2` for cycles, throughput and Mbps per kLUT. The `checks` column
-flags numbers you should not trust: `cycles_failed`, `cycles_stale` or `synth_stale` (the RTL changed after
-the measurement), `no_synth`, and `dirty`.
+recent synthesis and writes `reports/benchmark.csv`, one row per core. The columns follow GMU's LWC benchmark
+tables (ePrint 2023/484, Tables 12 and 14): plaintext throughput for long messages and for 1536, 64 and 16 B
+(Mbit/s), AD throughput, Kbit/s per LUT, Fmax, LUTs and FFs, plus speedups against `core_v2` and the raw cycle
+counts. The `checks` column flags numbers you should not trust: `cycles_failed`, `cycles_stale` or
+`synth_stale` (the RTL changed after the measurement), `no_synth`, `other_part` and `not_closed`. Every column is explained
+in `reports/README.md`.
 
 ## Gotchas
 - **cryptotvgen** needs the `requests` module but does not declare it (`make models` installs it).
@@ -185,5 +186,5 @@ the measurement), `no_synth`, and `dirty`.
   (e.g. 2) compile but give wrong results.
 
 ## Toolchain
-Questa 2026.1 or GHDL (simulation), Vivado batch mode (synthesis; target xc7a100tcsg324-1), Python 3 venv with
+Questa 2026.1 or GHDL (simulation), Vivado batch mode (synthesis; target xc7a100tftg256-2L), Python 3 venv with
 cryptotvgen 1.2.0, gcc.

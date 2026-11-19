@@ -20,7 +20,7 @@
 #           indexing and counter-width bugs that short vectors miss.
 #   badtag  Decrypt with one tag bit flipped; expects plaintext then a failure status.
 #           Use after touching the tag compare / final-permutation path.
-#   cycles  81 vectors on an (AD, PT) grid incl. 16+16 and 1536+1536; used by `make cycles`.
+#   cycles  81 vectors on an (AD, PT) grid plus plaintext-only 16 B and 64 B; used by `make cycles`.
 #   prof_short, prof_long   one workload each (16+16 B, 1536+1536 B); used by `make profile`.
 #
 # Benchmark flow for a core (all write results keyed by CORE):
@@ -28,6 +28,8 @@
 #   make cycles  CORE=v2_opt1        2. measured cycles per message -> build/sim/questa/<core>/cycles/timing.csv
 #   make profile CORE=v2_opt1 WL=long   3. where the cycles go (permutation busy / I/O / idle) -> reports/profile.csv
 #   make synth   CORE=v2_opt1        4. Fmax and area (source ./setup.sh vivado first) -> reports/synth_results.csv
+#                                       PERIOD0=<ns> sets the first clock target (default 6.0). If a core meets
+#                                       it on the first run, re-run tighter: Vivado stops optimizing once timing is met.
 #   make report                      5. every core vs the baseline -> reports/benchmark.csv
 #
 # Other examples:
@@ -154,7 +156,7 @@ profile:
 # Needs Vivado on PATH (source ./setup.sh vivado). Prints a line per Vivado run; results go to
 # reports/synth_results.csv (one row per synthesis of a core) and reports/synth_runs.csv (every run).
 synth:
-	python3 scripts/synth.py --core $(CORE)
+	python3 scripts/synth.py --core $(CORE) $(if $(PERIOD0),--period0 $(PERIOD0))
 
 # Every v2 core with measured cycles, joined with its latest synthesis, against the baseline core_v2.
 report:

@@ -57,7 +57,7 @@ LONG = [(0, 1536), (1536, 0), (1536, 1536), (0, 4000), (4000, 4000)]
 # `cycles` set: spans the block-count regimes (empty, partial, exact, many blocks) in AD and PT.
 CYC_AD = [0, 8, 28, 160, 1536]
 CYC_PT = [0, 1, 20, 160, 1536]
-CYC_EXTRA = [(16, 16), (64, 64)]   # NIST LWC benchmark point and eBACS short point
+CYC_EXTRA = [(0, 16), (0, 64)]   # plaintext-only sizes reported in GMU's benchmark tables (ePrint 2023/484)
 PROF = {"prof_short": (16, 16), "prof_long": (1536, 1536)}
 
 
