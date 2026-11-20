@@ -17,6 +17,8 @@ All GMU RTL implements Elephant **v1**, so the v2 core is our own port of GMU's 
 | Baseline benchmark, xc7a100tftg256-2L | `core_v2`: 90.5 MHz, 2918 LUT, 1079 FF; plaintext 539 Mbps long, 219 Mbps at 16 B; 184.8 Kbps/LUT. See `reports/benchmark.csv` |
 | Rounds-per-cycle sweep | `core_v2_r1/r4/r5/r8/r16` (`core_v2` with only `PERM_ROUNDS_PER_CYCLE` changed), all benchmarked |
 | `core_v2_r4_optB` (option B: I/O overlapped with the permutation, on `core_v2_r4`) | passes every v2 set. vs `core_v2_r4`: 50.74 → 42.81 cycles per PT block, 28.08 → 22.06 per AD block; 184.3 MHz, 1882 LUT, 1243 FF; 689 Mbps long PT, 366 Kbps/LUT. See `rtl/core_v2_r4_optB/OPT_B.md` |
+| `core_v2_r4_optBC` (options B + C: I/O overlap and two permutation units) | passes every v2 set. 21.74 cycles per PT block, 11.19 per AD block; 169.5 MHz, 2736 LUT, 1572 FF; 1247 Mbps long PT (×2.31 vs `core_v2`), 456 Kbps/LUT. See `rtl/core_v2_r4_optBC/OPT_BC.md` |
+| `core_v2_r4_optBCD` (B + C + D: two units, each two 4-round pipeline stages, 4 calls in flight) | passes every v2 set. 10.87 cycles per PT block, 6.50 per AD block; 147.8 MHz, 4732 LUT, 2403 FF; 2175 Mbps long PT (×4.03 vs `core_v2`), 460 Kbps/LUT. See `rtl/core_v2_r4_optBCD/OPT_BCD.md` |
 
 Not done yet:
 - Spongent permutation unit testbench (`tb/unit/`) and the C trace tool (per-permutation state dumps).
@@ -54,6 +56,8 @@ after that, day-to-day work is just `make sim`.
 | `rtl/ACCELERATION.md` | Speed-up options A–D (unroll, I/O overlap, two units, pipelining): which files each touches and how |
 | `rtl/core_v2_r*/` | Reference only: `core_v2` at 1, 4, 5, 8 or 16 rounds per cycle (see each `REFERENCE.md`). `r1` compares with `Elephant_GMU` in ePrint 2023/484 |
 | `rtl/core_v2_r4_optB/` | Option B on `core_v2_r4`: AD and message I/O overlapped with the permutation (see `OPT_B.md`) |
+| `rtl/core_v2_r4_optBC/` | Options B + C: optB plus a second permutation unit (AD pairs, MAC(k) ‖ KS(k+2)); see `OPT_BC.md` |
+| `rtl/core_v2_r4_optBCD/` | Options B + C + D: 4 permutation slots (2 units × 2 pipeline stages), batch loader, 7-mask LFSR; see `OPT_BCD.md` |
 | `rtl/core_v2[_rN]_opt*/` | Further optimized v2 cores, one directory each (see Benchmarking) |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |

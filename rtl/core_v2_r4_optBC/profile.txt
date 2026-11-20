@@ -1,0 +1,6 @@
+# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
+# Each probe is a std_logic that is '1' exactly in the cycles a permutation unit computes rounds.
+# core_v2_r4_optBC has two units in lockstep: A (ms_reg) runs whenever perm_en is '1',
+# B (msb_reg) only when it takes part (perm_b_en = perm_en and b_active).
+perm_a  perm_en
+perm_b  perm_b_en

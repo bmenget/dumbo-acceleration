@@ -11,8 +11,8 @@ Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 
 |---|---|
 | A | Swept: `core_v2_r1`, `r4`, `r5`, `r8`, `r16` (see `reports/benchmark.csv`) |
 | B | **Done:** [core_v2_r4_optB/](core_v2_r4_optB/OPT_B.md), on top of `core_v2_r4`. Section 4 describes how it was built. |
-| C | Not started |
-| D | Not started |
+| C | **Done together with B:** [core_v2_r4_optBC/](core_v2_r4_optBC/OPT_BC.md). It pairs MAC(k) with KS(k+2), not KS(k+1) as section 5 suggests, so B's overlap survives (needs a 4th mask, +8 LFSR FF). AD blocks also run in pairs. 21.74 cycles per PT block, 169.5 MHz, 2736 LUT. |
+| D | **Done on top of B + C:** [core_v2_r4_optBCD/](core_v2_r4_optBCD/OPT_BCD.md). Two 4-round stages per unit, 4 calls in flight. That's logically equal to 4 R=4 units; splitting R=4 into 2 + 2 would not have reduced cycles. 10.87 cycles per PT block, 147.8 MHz, 4732 LUT, 2175 Mbps, 460 Kbps/LUT (flat vs optBC). |
 
 ## 1. Where the time goes today
 
@@ -204,6 +204,19 @@ time as the message is harder: the AD and the message both use the single mask L
 **Gain.** Two permutations per 8 cycles: about 27 → 19 cycles per block on its own, and about 10–12 with
 option B, where it approaches max(8 permutation cycles, about 6 I/O cycles) plus control. Area goes up by
 roughly one more permutation's worth of LUTs, so throughput per LUT improves less than raw throughput.
+
+**As built, combined with B ([core_v2_r4_optBC/](core_v2_r4_optBC/OPT_BC.md)).** Pairing KS(k+1) with MAC(k)
+would make streaming wait for KS(k+1), which undoes B. Instead, unit A runs MAC(k) while unit B runs KS(k+2), and
+block k+1 streams from KS(k+1), computed one round earlier. That needs φ^k, φ^(k+2) and φ^(k+3) at once, so the
+LFSR window grew by one mask (next2, 176 → 184 bits).
+
+AD pairs are set up with next/next2. The LFSR steps once mid-permutation, so the POST unmask uses cur/next and the
+window advances two per pair.
+
+Measured at R = 4:
+- **Cycles:** 21.74 per PT block (optB 42.81) and 11.19 per AD block (optB 22.06).
+- **Area:** +854 LUT and +329 FF over optB.
+- **Fmax:** 184.3 → 169.5 MHz. The new critical path is control fanout into the 160-bit muxes.
 
 ## 6. Option D: pipeline the permutation and interleave two calls
 
