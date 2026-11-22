@@ -28,9 +28,10 @@
 #   make cycles  CORE=v2_opt1        2. measured cycles per message -> build/sim/questa/<core>/cycles/timing.csv
 #   make profile CORE=v2_opt1 WL=long   3. where the cycles go (permutation busy / I/O / idle) -> reports/profile.csv
 #   make synth   CORE=v2_opt1        4. Fmax and area (source ./setup.sh vivado first) -> reports/synth_results.csv
-#                                       PERIOD0=<ns> sets the first clock target (default 6.0). If a core meets
-#                                       it on the first run, re-run tighter: Vivado stops optimizing once timing is met.
+#                                       Fmax search: scripts/fmax.py (tight probe, calibrated retargets, <= 4 runs).
+#                                       PERIOD0=<ns> overrides the first (probe) target.
 #   make report                      5. every core vs the baseline -> reports/benchmark.csv
+#   make plots                       6. report graphs -> reports/graphs/ (needs matplotlib; see its README)
 #
 # Other examples:
 #   make models                      build C models into model/lib, check v2 vs official KAT
@@ -91,7 +92,7 @@ TB_GENERICS := G_FNAME_PDI=$(ABS)/$(KATDIR)/pdi.txt \
 GHDL      ?= ghdl
 GHDLFLAGS ?= --std=08 -frelaxed --workdir=$(ABS)/build/ghdl/$(CFG)
 
-.PHONY: help venv models kat sim sim-all cycles profile synth report clean
+.PHONY: help venv models kat sim sim-all cycles profile synth report plots clean
 
 help:
 	@sed -n '3,/^SPEC_DEFAULT :=/p' Makefile | grep -v '^SPEC_DEFAULT' | sed 's/^# \{0,1\}//'
@@ -161,6 +162,10 @@ synth:
 # Every v2 core with measured cycles, joined with its latest synthesis, against the baseline core_v2.
 report:
 	python3 scripts/report.py
+
+# Report graphs (scripts/plot_report.py) from reports/*.csv, the sweep and the profile VCDs.
+plots:
+	python3 scripts/plot_report.py
 
 clean:
 	rm -rf build

@@ -61,8 +61,9 @@ after that, day-to-day work is just `make sim`.
 | `rtl/core_v2[_rN]_opt*/` | Further optimized v2 cores, one directory each (see Benchmarking) |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |
-| `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py` |
-| `reports/` | `benchmark.csv` (every core vs baseline), `profile.csv` (cycle breakdown), `synth_results.csv`, `synth_runs.csv` |
+| `rtl/core_v2_gen/` | Parameterized core (rounds per unit R, pipeline stages S, units U, fast loader) for the design-space sweep; see `GEN.md` |
+| `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py`, `metrics.py` (metric formulas shared by report and sweep), `critpath.py` (critical-path classifier); sweep: `sweep.py` |
+| `reports/` | `benchmark.csv` (every core vs baseline), `profile.csv` (cycle breakdown), `synth_results.csv`, `synth_runs.csv`; `sweep/` (design-space sweep of `core_v2_gen`, see `reports/sweep/README.md`) |
 | `docs/` | AI usage log (required by the course), spec PDFs for Elephant v1/v2 and the NIST final-round report |
 
 Provenance of copied files (source repo and commit) is in `rtl/UPSTREAM.md`, `tb/UPSTREAM.md`
@@ -165,10 +166,17 @@ each a `std_logic` that is '1' exactly when that unit computes rounds). Baseline
   and the part GMU used to benchmark the LWC finalists; set at the top of `scripts/synth.py`; alternatives in
   `reports/README.md`); out-of-context synth, then opt, place, phys_opt, route.
   No I/O constraints, so only paths inside the design are timed.
-- **Fmax search:** Vivado reports slack, not a maximum frequency, so the script retargets the clock from the
-  achieved slack (`period - WNS`) until timing is met within 3% of the target (default start 6 ns, up to 5
-  runs). Fmax = 1000 / (period - WNS) from the fastest run that met timing. Each run's logs and reports
-  (including `timing.rpt`, with the critical path) are in `build/synth/<core>/p<period>/`.
+- **Fmax search (`scripts/fmax.py`, shared with the sweep):** Vivado reports slack, not a maximum frequency.
+  A met run at target P supports any period >= P - WNS (the achieved delay), so Fmax = 1000 / (P - WNS).
+  - **Probe:** the first target is a tight one, 8% below a delay predicted from the rounds per cycle and
+    the calls in flight. Vivado optimizes hardest under a tight target and stops once a target is met.
+  - **After a failure:** retarget at the achieved delay + 5% (then 10%, 15%).
+  - **After a met run:** finish if a tighter failed run brackets it; otherwise tighten again.
+  - **Result:** the best met run, at most 4 runs. `python3 scripts/fmax.py calibrate` re-derives the
+    constants from `reports/synth_runs.csv`. On the first 29 runs, the old rule (retarget at the achieved
+    delay) averaged 2.9 runs and left one core unclosed; the new one should take about 2.
+  - **Files:** each run's logs and reports (including `timing.rpt`, with the critical path) are in
+    `build/synth/<core>/p<period>/`.
 - **Run-to-run noise is about ±0.3 ns.** Treat Fmax differences under ~5% between cores as noise.
 - **Baseline critical path:** `perm_cnt_int` (round-constant select) through all 10 unrolled rounds into
   `ms_reg_out`: 11 logic levels, 85% of the delay is routing.
@@ -180,6 +188,18 @@ tables (ePrint 2023/484, Tables 12 and 14): plaintext throughput for long messag
 counts. The `checks` column flags numbers you should not trust: `cycles_failed`, `cycles_stale` or
 `synth_stale` (the RTL changed after the measurement), `no_synth`, `other_part` and `not_closed`. Every column is explained
 in `reports/README.md`.
+
+**Critical path (`python3 scripts/critpath.py --core <core>`).** Classifies the 5 worst paths of a core's
+latest synthesis (`perm`, `ctrl->datapath`, `core->wrapper`, `wrapper`, `tag`, `lfsr`, …; see
+`reports/sweep/README.md`) and lists the 3 worst *distinct* categories with their gaps. The categories come
+from `paths.tsv`, which `vivado_build.tcl` writes next to `timing.rpt` with the worst path to each of up to
+1000 endpoints. Runs made before 2026-11-19 21:00 have no `paths.tsv` and fall back to the 5 paths.
+
+**Design-space sweep (`scripts/sweep.py`).** Runs the parameterized core `rtl/core_v2_gen/` over a grid of
+R (rounds per unit), S (pipeline stages per unit), U (units) and the fast loader. Each point is generated,
+validated (`edge` + `cycles`), synthesized and classified, then deleted; only the most recent point's
+build (`build/sweep/last/`) and failed points (`build/sweep/failed/`) are kept. Results go to
+`reports/sweep/sweep.csv` with the same metric columns as `benchmark.csv`. See `reports/sweep/README.md`.
 
 ## Gotchas
 - **cryptotvgen** needs the `requests` module but does not declare it (`make models` installs it).

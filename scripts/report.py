@@ -32,12 +32,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import core_info  # noqa: E402
+import metrics  # noqa: E402
 SIMS = ROOT / "build" / "sim" / "questa"
 SYNTH = ROOT / "reports" / "synth_results.csv"
 OUT = ROOT / "reports" / "benchmark.csv"
 BASELINE = "v2"
-SIZES = (16, 64, 1536)          # plaintext-only sizes, as in the paper's Table 12
-LONG = (160, 1536)              # two sizes whose difference gives the long-message limit
 
 COLS = ["core", "rounds", "cycles_per_perm", "fmax_mhz", "luts", "ffs",
         "thr_pt_long", "thr_pt_1536", "thr_pt_64", "thr_pt_16",
@@ -65,11 +64,7 @@ def measured_cycles(core):
     d = SIMS / core / "cycles"
     res = d / "result.txt"
     passed = res.exists() and res.read_text().strip() == "0"
-    cyc = {}
-    for r in csv.DictReader((d / "timing.csv").open()):
-        if r["Operation"] == "AE" and r["New Key"] == "0":
-            cyc.setdefault((int(r["AD Size"]), int(r["Msg Size"])), int(r["Actual Execution Time"]))
-    return cyc, passed, (d / "timing.csv").stat().st_mtime
+    return metrics.read_cycles(d / "timing.csv"), passed, (d / "timing.csv").stat().st_mtime
 
 
 def latest_synth():
@@ -78,10 +73,6 @@ def latest_synth():
         for r in csv.DictReader(SYNTH.open()):
             rows[r["core"]] = r          # appended in time order: last row wins
     return rows
-
-
-def f1(x):
-    return f"{x:.1f}" if x is not None else ""
 
 
 def core_row(core, s, part):
@@ -102,35 +93,16 @@ def core_row(core, s, part):
         if s.get("closed") == "0":
             checks.append("not_closed")
 
-    def get(ad, msg):
-        return cyc.get((ad, msg))
-
-    lo, hi = LONG
-    blk_pt = blk_ad = None   # cycles per 20-byte block in steady state
-    if get(0, hi) and get(0, lo):
-        blk_pt = (get(0, hi) - get(0, lo)) / ((hi - lo) / 20)
-    if get(hi, 0) and get(lo, 0):
-        blk_ad = (get(hi, 0) - get(lo, 0)) / ((hi - lo) / 20)
-
+    cols, blk_pt, blk_ad = metrics.cycle_cols(cyc)
     rnd, cpp = core_info.rounds(core)
     row = dict(core=core, rounds=rnd, cycles_per_perm=cpp, checks=" ".join(checks),
-               cycles_date=datetime.datetime.fromtimestamp(cdate).isoformat(timespec="seconds"),
-               cyc_blk_pt=f"{blk_pt:.2f}" if blk_pt else "", cyc_blk_ad=f"{blk_ad:.2f}" if blk_ad else "",
-               **{f"cyc_pt_{n}": get(0, n) or "" for n in SIZES})
+               cycles_date=datetime.datetime.fromtimestamp(cdate).isoformat(timespec="seconds"), **cols)
     if s is None:
         return row
     fmax = float(s["fmax_mhz"])
     luts = int(s["luts"])
-    thr = {n: 8 * n * fmax / get(0, n) for n in SIZES if get(0, n)}      # Mbit/s
-    long_pt = 160 * fmax / blk_pt if blk_pt else None
-    long_ad = 160 * fmax / blk_ad if blk_ad else None
     row.update(fmax_mhz=s["fmax_mhz"], luts=luts, ffs=s["ffs"], part=s.get("part", ""),
-               synth_date=s["date"], thr_pt_long=f1(long_pt), thr_ad_long=f1(long_ad),
-               ad_pt_ratio=f"{long_ad / long_pt:.2f}" if long_pt and long_ad else "",
-               kbps_per_lut_pt=f1(long_pt * 1000 / luts if long_pt else None),
-               kbps_per_lut_ad=f1(long_ad * 1000 / luts if long_ad else None),
-               **{f"thr_pt_{n}": f1(t) for n, t in thr.items()},
-               **{f"pct_long_{n}": f1(100 * t / long_pt) for n, t in thr.items() if long_pt})
+               synth_date=s["date"], **metrics.perf_cols(cyc, blk_pt, blk_ad, fmax, luts))
     return row
 
 
@@ -145,10 +117,7 @@ def main():
 
     base = next(r for r in rows if r["core"] == BASELINE)
     for r in rows:
-        for col, src in (("x_thr_pt_long", "thr_pt_long"), ("x_thr_pt_16", "thr_pt_16"),
-                         ("x_kbps_per_lut_pt", "kbps_per_lut_pt")):
-            if r.get(src) and base.get(src):
-                r[col] = f"{float(r[src]) / float(base[src]):.2f}"
+        r.update(metrics.speedup_cols(r, base))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("w", newline="") as f:

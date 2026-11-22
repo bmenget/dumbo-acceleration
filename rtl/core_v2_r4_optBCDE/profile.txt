@@ -1,0 +1,8 @@
+# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
+# Each probe is a std_logic that is '1' exactly in the cycles a permutation slot computes rounds.
+# core_v2_r4_optBCDE has four stage registers (units A and B, each two pipeline stages), each with its
+# own staggered call: busy_<reg> = the register holds a live call.
+perm_a0  busy_a0
+perm_a1  busy_a1
+perm_b0  busy_b0
+perm_b1  busy_b1
