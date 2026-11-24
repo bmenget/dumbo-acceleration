@@ -1,5 +1,10 @@
 rtl/shared/lwc/NIST_LWAPI_pkg.vhd
-rtl/logan/glue/design_pkg.vhd
+rtl/brody/base_r10/elephant_constants.vhd
+rtl/brody/base_r10/design_pkg.vhd
+rtl/brody/base_r10/elephant_datapath_lfsr.vhd
+rtl/brody/base_r10/elephant_perm.vhd
+rtl/brody/base_r10/elephant_datapath.vhd
+rtl/brody/base_r10/CryptoCore.vhd
 rtl/shared/lwc/key_piso.vhd
 rtl/shared/lwc/fwft_fifo.vhd
 rtl/shared/lwc/data_sipo.vhd
@@ -8,7 +13,3 @@ rtl/shared/lwc/StepDownCountLd.vhd
 rtl/shared/lwc/PreProcessor.vhd
 rtl/shared/lwc/PostProcessor.vhd
 rtl/shared/lwc/LWC.vhd
-rtl/logan/src/spongent_round.sv
-rtl/merged/pipe16x2d16_ILN/spongent_perm_pipe.sv
-rtl/merged/pipe16x2d16_ILN/CryptoCorePipe.sv
-rtl/merged/pipe16x2d16_ILN/CryptoCore_slice_shim.sv

@@ -1,9 +1,9 @@
-# merged/pipe10x2d8_IL: Logan's 10×2 ring with our options I and L
+# merged/ring20_IL: Logan's 10×2 ring with our options I and L
 
 The same shim (`CryptoCore_slice_shim.sv`: register slices on bdi, bdo and key) and modified core copy
 (`CryptoCorePipe.sv`: KB / TI data selects from registers) as
-[merged/pipe20x2d16_IL](../pipe20x2d16_IL/README.md), with `DUMBO_S=10 DUMBO_K=2
-DUMBO_D=8`. Compared against [logan/pipe10x2d8](../../logan/pipe10x2d8/).
+[merged/ring40_IL](../ring40_IL/README.md), with `DUMBO_S=10 DUMBO_K=2
+DUMBO_D=8`. Compared against [logan/ring20](../../logan/ring20/).
 
 ## Results (2026-11-23)
 - Validation: `make sim-all` passes random 1000, edge 374, full33 2178, long 10, badtag 374; `make cycles`

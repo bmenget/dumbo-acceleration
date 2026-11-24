@@ -9,6 +9,6 @@ rtl/shared/lwc/PreProcessor.vhd
 rtl/shared/lwc/PostProcessor.vhd
 rtl/shared/lwc/LWC.vhd
 rtl/logan/src/spongent_round.sv
-rtl/logan/src/spongent_perm_pipe.sv
-rtl/merged/pipe10x2d8_IL/CryptoCorePipe.sv
-rtl/merged/pipe10x2d8_IL/CryptoCore_slice_shim.sv
+rtl/merged/ring32_ILN/spongent_perm_pipe.sv
+rtl/merged/ring32_ILN/CryptoCorePipe.sv
+rtl/merged/ring32_ILN/CryptoCore_slice_shim.sv

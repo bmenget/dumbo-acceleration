@@ -1,7 +1,7 @@
 # brody/base_r1: reference point, not an optimization
 
-`brody/base` with `PERM_ROUNDS_PER_CYCLE = 1` (80 cycles per permutation). That is the only difference
-(`diff -r rtl/brody/base rtl/brody/base_r1`).
+`brody/base_r10` with `PERM_ROUNDS_PER_CYCLE = 1` (80 cycles per permutation). That is the only difference
+(`diff -r rtl/brody/base_r10 rtl/brody/base_r1`).
 
 Purpose: compare our flow with `Elephant_GMU` in GMU's LWC benchmark (Mohajerani et al., ePrint 2023/484,
 `docs/SCA-Benchmarking.pdf`, Tables 12 and 14): 222 MHz, 1,375 LUTs, 912 FFs, 208 Mbps long plaintext,

@@ -259,11 +259,11 @@ def done_points(tag, h):
 
 
 def baseline_row():
-    """brody/base's row of reports/benchmark.csv, for the x_ speedups."""
+    """brody/base_r10's row of reports/benchmark.csv, for the x_ speedups."""
     f = ROOT / "reports" / "benchmark.csv"
     if f.exists():
         for r in csv.DictReader(f.open()):
-            if r["core"] == "brody/base":
+            if r["core"] == "brody/base_r10":
                 return r
     return None
 

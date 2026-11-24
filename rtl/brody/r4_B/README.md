@@ -28,13 +28,13 @@ LFSR is unchanged. The loader writes the next block into `load_data_output` whil
 MAC(k) captures `C_k ⊕ masks` into `ms_reg` in one cycle (`SRC_BLK`) before the loader restarts. The
 keystream nonce comes from `npub_out` (`SRC_NONCE`), so it no longer passes through `load_data_output`.
 
-## Behavior kept from brody/base
+## Behavior kept from brody/base_r10
 - AD block 0 decides "no AD" from `bdi_type /= HDR_AD`, and the first keystream permutation decides
   "empty message" from `bdi_type` not being PT/CT. These are the same checks at about the same time as
-  `brody/base`.
+  `brody/base_r10`.
 - AD blocks after the first now end **only** on the eot flags, not on `bdi_type`, so a header cycle between
-  AD segments can't end the AD early. This is more robust than `brody/base`, not less.
-- An empty message still computes KS(0) and throws it away, as `brody/base` does.
+  AD segments can't end the AD early. This is more robust than `brody/base_r10`, not less.
+- An empty message still computes KS(0) and throws it away, as `brody/base_r10` does.
 
 ## Results (2026-11-19)
 - Validation: `make sim-all CORE=brody/r4_B` passes random 1000, edge 374, full33 2178, long 10, badtag 374.

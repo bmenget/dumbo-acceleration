@@ -1,7 +1,7 @@
-# Elephant v1 -> Dumbo v2 port (brody/base)
+# Elephant v1 -> Dumbo v2 port (brody/base_r10)
 
 Only `elephant_datapath.vhd` and `CryptoCore.vhd` differ from `gmu/arch1_v1`
-(`diff -r rtl/gmu/arch1_v1 rtl/brody/base`). The permutation, LFSR, wrapper and testbench are unchanged.
+(`diff -r rtl/gmu/arch1_v1 rtl/brody/base_r10`). The permutation, LFSR, wrapper and testbench are unchanged.
 
 ## Why the existing LFSR window is enough
 The 176-bit LFSR register exposes a window (prev, cur, next) = (phi^(a-1), phi^a, phi^(a+1)) of the mask

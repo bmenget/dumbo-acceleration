@@ -31,7 +31,7 @@ Mask window at position a: prev = φ^(a-1), cur = φ^a, next = φ^(a+1), next2 =
 
 Why the extra mask: running MAC(k) together with KS(k+2) (not KS(k+1)) keeps option B's overlap. The
 keystream for the block being streamed was computed one round earlier. That pairing needs φ^k, φ^(k+2) and
-φ^(k+3) at once, which is one mask more than `brody/base`'s window. The mid-permutation step for AD pairs
+φ^(k+3) at once, which is one mask more than `brody/base_r10`'s window. The mid-permutation step for AD pairs
 lets the window advance two positions per pair while the POST cycle still unmasks from in-window masks.
 
 ## Results (2026-11-19)
@@ -64,4 +64,4 @@ lets the window advance two positions per pair while the POST cycle still unmask
   mask φ^(k+1) ⊕ φ^(k+3) is cur ⊕ next2 in the same window, so unit B could take it.
 - The last AD pair and the message start are serial. They share the mask LFSR, so overlapping them would
   need a second LFSR.
-- KS(0) ‖ KS(1) is wasted work for an empty message (as in `brody/base`, which computes KS(0)).
+- KS(0) ‖ KS(1) is wasted work for an empty message (as in `brody/base_r10`, which computes KS(0)).

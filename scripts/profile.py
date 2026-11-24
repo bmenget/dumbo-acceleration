@@ -26,8 +26,8 @@ The window runs from the first to the last cycle with any activity (busy or I/O)
 final tag permutation and the tag check of a decryption.
 
 Subcommands (both called by the Makefile):
-  profile.py do    --core brody/base --out build/prof/brody/base.do         write the Questa do-file
-  profile.py parse --core brody/base --workload long --vcd <file>    classify cycles, print, update reports/profile.csv
+  profile.py do    --core brody/base_r10 --out build/prof/brody/base_r10.do         write the Questa do-file
+  profile.py parse --core brody/base_r10 --workload long --vcd <file>    classify cycles, print, update reports/profile.csv
 """
 import argparse
 import csv

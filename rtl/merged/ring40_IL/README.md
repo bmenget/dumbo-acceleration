@@ -1,6 +1,6 @@
-# merged/pipe20x2d16_IL: Logan's 20×2 ring with our options I and L
+# merged/ring40_IL: Logan's 20×2 ring with our options I and L
 
-On top of [merged/pipe20x2d16_I](../pipe20x2d16_I/README.md). Two changes:
+On top of [merged/ring40_I](../ring40_I/README.md). Two changes:
 
 1. **Key slice** (`CryptoCore_slice_shim.sv`): a 2-entry register slice on the key channel too (`key`,
    `key_update`), so no wrapper signal reaches his logic in the same cycle. His core reads `key_valid` only as a
@@ -14,17 +14,17 @@ On top of [merged/pipe20x2d16_I](../pipe20x2d16_I/README.md). Two changes:
      that cycle and `KB` is not read (`bdi_ready`, `bdo_valid` need `kb_v`) until the next `kb_load`.
    - `TI <= (st == S_FIN) ? ACC ^ KSTAR : ts_full ^ cmask`; `comp` never happens in `S_FIN`, so this is exact.
 
-Why: pipe20x2d16_I's critical path was PreProcessor → `key_valid` → his shared `adv` / `comp` (fanout 335) →
+Why: ring40_I's critical path was PreProcessor → `key_valid` → his shared `adv` / `comp` (fanout 335) →
 `kb_load` (fanout 163) → the 160 `KB` enables.
 
 ## Results (2026-11-23)
 - Validation: `make sim-all` passes random 1000, edge 374, full33 2178, long 10, badtag 374; `make cycles`
-  checks all 81 vectors. Against pipe20x2d16_I: 27 encryptions take one more cycle (the key slice), the other 27 and
+  checks all 81 vectors. Against ring40_I: 27 encryptions take one more cycle (the key slice), the other 27 and
   all 27 decryptions the same; cycles per long block unchanged (4.97).
-- `make synth` (from 4.117 ns, where pipe20x2d16_I closed): **249.2 MHz, 5700 LUT, 5534 FF** (pipe20x2d16_I: 245.2 MHz, 5607
+- `make synth` (from 4.117 ns, where ring40_I closed): **249.2 MHz, 5700 LUT, 5534 FF** (ring40_I: 245.2 MHz, 5607
   LUT, 5467 FF). Runs: 4.117 met (+0.104, 249.2 MHz achieved); 3.692 failed by 0.377 (245.8 MHz achieved);
   4.272 met (237.5 MHz achieved).
-- Throughput at 249.2 MHz: **8021 Mbps long PT** (pipe20x2d16_I 7892, base 7162), **1407 Kbps/LUT** (pipe20x2d16_I 1408);
+- Throughput at 249.2 MHz: **8021 Mbps long PT** (ring40_I 7892, base 7162), **1407 Kbps/LUT** (ring40_I 1408);
   16 B PT 222 Mbps, 64 B 803.
 - Critical paths: no wrapper → core path left. Closed run: `tw` → `need_pad` / `TI` / `rp` / `KB`, one-hot
   state → `ACC` (fanout), ring LFSR (`lf`, finish detection) → `ACC` / `HK`. Tight 3.692 ns run: the key

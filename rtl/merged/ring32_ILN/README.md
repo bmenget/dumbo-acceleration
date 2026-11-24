@@ -1,6 +1,6 @@
-# merged/pipe16x2d16_ILN: a 32-round ring with two entry/exit points
+# merged/ring32_ILN: a 32-round ring with two entry/exit points
 
-On top of [merged/pipe20x2d16_IL](../pipe20x2d16_IL/README.md) (Logan's ring + our
+On top of [merged/ring40_IL](../ring40_IL/README.md) (Logan's ring + our
 options I and L). Area change: 16 × 2 = 32 rounds instead of 20 × 2 = 40, at the same bus-limited throughput.
 **Status: measured 2026-11-23 (results below): adopted.**
 
@@ -13,7 +13,7 @@ options I and L). Area change: 16 × 2 = 32 rounds instead of 20 × 2 = 40, at t
   ride empty for 8 cycles (about 6 cycles per block). With **two points 8 stages apart**, a call entering at one
   leaves at the other, and that point refills the slot in the same cycle.
 
-## What changes (vs merged/pipe20x2d16_IL)
+## What changes (vs merged/ring40_IL)
 - `spongent_perm_pipe.sv` (this directory's copy): parameter `P` (entry/exit points, `S/P` stages apart;
   needs `80/K` a multiple of `S/P` and `S/P >= 2`). Each point has its own insertion mux and finish detector;
   a call is accepted at the lowest-numbered point whose slot is empty or finishing; the result comes from the
@@ -32,22 +32,22 @@ options I and L). Area change: 16 × 2 = 32 rounds instead of 20 × 2 = 40, at t
   −8 rounds ≈ −750 LUT and −680 FF; +160 (second insertion mux) +160 (result mux) +~30 (second finish
   detector, arbitration). Net about **−350 to −450 LUT** (−6 to −8% of 5700).
 - Cycles: about 5.0 per long PT block, if the ring stays full (no spare rounds now: any bubble costs throughput).
-- Fmax: about the pipe20x2d16_IL's 249 MHz if the extra muxes stay off the critical paths (the ring had slack;
+- Fmax: about the ring40_IL's 249 MHz if the extra muxes stay off the critical paths (the ring had slack;
   the shared accept logic is near-critical).
-- If both hold: about 5300 LUT, 8000 Mbps, **about 1500 Kbps/LUT** (pipe20x2d16_IL: 1407).
+- If both hold: about 5300 LUT, 8000 Mbps, **about 1500 Kbps/LUT** (ring40_IL: 1407).
 
 ## Results (2026-11-23)
 - Validation: `make sim-all` passes random 1000, edge 374, full33 2178, long 10, badtag 374; `make cycles`
-  checks all 81 vectors. Against pipe20x2d16_IL: 36 messages the same, 9 shorter (by 2 or 9 cycles), 36 longer
+  checks all 81 vectors. Against ring40_IL: 36 messages the same, 9 shorter (by 2 or 9 cycles), 36 longer
   (by 4–6 cycles, the most on 1536 B messages: +6 of about 1700). **Cycles per long PT block 4.94** (20×2: 4.97),
-  AD 5.01: the ring stays full at 32 rounds. Profile (long workload): 1818 cycles (pipe20x2d16_IL 1810); the per-stage
+  AD 5.01: the ring stays full at 32 rounds. Profile (long workload): 1818 cycles (ring40_IL 1810); the per-stage
   probes `g_stage[s]/busy` work.
-- `make synth` (from 4.117 ns): **247.1 MHz, 5176 LUT, 4864 FF** (pipe20x2d16_IL: 249.2 MHz, 5700 LUT, 5534 FF).
+- `make synth` (from 4.117 ns): **247.1 MHz, 5176 LUT, 4864 FF** (ring40_IL: 249.2 MHz, 5700 LUT, 5534 FF).
   Runs: 4.117 met (+0.070, 247.1 MHz achieved); 3.723 failed by 0.162 (257.4 MHz achieved); 4.079 failed by
   0.260; 4.773 met (223.6 MHz achieved).
-- Throughput at 247.1 MHz: **8000 Mbps long PT** (pipe20x2d16_IL 8021), **1546 Kbps/LUT** (pipe20x2d16_IL 1407, +9.8%;
+- Throughput at 247.1 MHz: **8000 Mbps long PT** (ring40_IL 8021), **1546 Kbps/LUT** (ring40_IL 1407, +9.8%;
   base 20×2 1290, +19.8%); 16 B PT 220 Mbps, 64 B 796.
-- Area: **−524 LUT (−9.2%), −670 FF** against pipe20x2d16_IL: more than the −350 to −450 estimated.
+- Area: **−524 LUT (−9.2%), −670 FF** against ring40_IL: more than the −350 to −450 estimated.
 - Critical paths (4.117 ns run): unchanged in kind, `tw → TI / KB / HC / MI / TS` in the core (4–5 levels);
   ring paths now among the 1000 worst (78; the worst `lf → st`, 0.306 ns slack: round constants through two
   rounds and an insertion mux).
@@ -55,10 +55,10 @@ options I and L). Area change: 16 × 2 = 32 rounds instead of 20 × 2 = 40, at t
 ## Takeaways
 - The right-sized ring keeps the bus-limited throughput (8.0 Gbps) in 9% fewer LUTs: the best throughput per
   LUT measured in this project (1546 Kbps/LUT), and the best Pareto point at about 5.2 k LUT.
-- Clock: −0.8% against pipe20x2d16_IL (within Vivado's spread); the second insertion and result muxes did not
+- Clock: −0.8% against ring40_IL (within Vivado's spread); the second insertion and result muxes did not
   reach the critical path.
 - Short messages are unchanged (call latency is still 80/K + 1 = 41 cycles; 16 B in 144 cycles).
 
 ## Checks for the first run (done)
-- `make sim-all`, then compare `make cycles` with pipe20x2d16_IL: long-block cycles must stay about 5.0.
-- `make synth` from 4.117 ns (pipe20x2d16_IL's closing period), then `critpath`-style path listing for the new muxes.
+- `make sim-all`, then compare `make cycles` with ring40_IL: long-block cycles must stay about 5.0.
+- `make synth` from 4.117 ns (ring40_IL's closing period), then `critpath`-style path listing for the new muxes.

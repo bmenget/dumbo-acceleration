@@ -1,10 +1,10 @@
-# Speeding up brody/base: options and where they land in the RTL
+# Speeding up brody/base_r10: options and where they land in the RTL
 
 This is a plan for the optimized cores (`rtl/brody/`, `rtl/merged/`; naming in [README.md](README.md)). It covers the
 options A–N for making Dumbo v2 faster (and smaller), which files each one changes, and how. Sections 3–12 cover
-A–J; K–N are summarized in the tables below and described in their cores' `README.md`. Line references are to `brody/base` as of 2026-11-19.
+A–J; K–N are summarized in the tables below and described in their cores' `README.md`. Line references are to `brody/base_r10` as of 2026-11-19.
 Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 port is described in
-[brody/base/README.md](brody/base/README.md).
+[brody/base_r10/README.md](brody/base_r10/README.md).
 
 **Status (2026-11-23)**
 
@@ -23,7 +23,7 @@ Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 
 | K | **Done on top of r2 J:** [attic/brody/r2_BtoK/](attic/brody/r2_BtoK/README.md). Timing only: r2 J's critical path ran wrapper → core → wrapper (PreProcessor → tag compare → `msg_auth` → PostProcessor, 12 levels), not through the wrapper alone. The tag check now only updates `tag_verified`, a new `AUTH` state shows `msg_auth` from registers, and `key_ready` no longer waits for `key_valid`. 204.2 MHz (+3.3%), 5762 LUT, 6611 Mbps long PT, 1147 Kbps/LUT; +1 cycle per decryption, encryption unchanged. Next limit: `ih_v` / `ih` → input buffers. Idea from Logan's cores (`rtl/logan/src/`). |
 | L | **Done on top of K:** [brody/r2_BtoL/](brody/r2_BtoL/README.md). Timing only: `saving_bdo` (store ciphertext or word into the input buffer) is decoded from registers instead of set by the loader's accept, so the accept (`ih_v`, `ks_cnt`, …) reaches only the buffers' write enable, not their data mux. 208.0 MHz, 5742 LUT, 6734 Mbps long PT, 1173 Kbps/LUT; same cycles as K. Remaining limits near 220 MHz: input-side, routing-bound paths (wrapper → `wait_cnt`, `ih → ib`, `ih → kh`). |
 | M | **Tried on top of L, not adopted:** [merged/r2_BtoM/](merged/r2_BtoM/README.md). No mask delay line (Logan's idea): AD / MAC masks summed into `macc` at load and fed to FIN, keystream masks rebuilt at the output by a second KS window. Correct (all sets pass, same cycles), but 5725 LUT (−17) and +333 FF: the new 6-input result mux and second window cost about what the 320 SRLs did. 200.8 MHz (new path `ks_st` → both windows). L stays the r2 core. |
-| N | **Done on Logan's ring:** [merged/pipe16x2d16_ILN/](merged/pipe16x2d16_ILN/README.md), on top of [merged/pipe20x2d16_IL/](merged/pipe20x2d16_IL/README.md) (his 20×2 ring with our I and L: 249.2 MHz, 8021 Mbps). A 32-round ring (16 stages × 2 rounds) with two entry / exit points, so a call can finish opposite where it entered: the 32 rounds per cycle long messages need at the bus limit, not 40. Same cycles; 247.1 MHz, 5176 LUT (−524), 8000 Mbps long PT, **1546 Kbps/LUT**, the best of any core. |
+| N | **Done on Logan's ring:** [merged/ring32_ILN/](merged/ring32_ILN/README.md), on top of [merged/ring40_IL/](merged/ring40_IL/README.md) (his 20×2 ring with our I and L: 249.2 MHz, 8021 Mbps). A 32-round ring (16 stages × 2 rounds) with two entry / exit points, so a call can finish opposite where it entered: the 32 rounds per cycle long messages need at the bus limit, not 40. Same cycles; 247.1 MHz, 5176 LUT (−524), 8000 Mbps long PT, **1546 Kbps/LUT**, the best of any core. |
 | Sweep | [brody/gen/](brody/gen/README.md) generalizes B + C + D with R (rounds per unit), S (pipeline stages, a pure register knob), U (units) and a fast loader; `scripts/sweep.py` explores the grid. Built and elaborated; not yet simulated. |
 
 ## 1. Where the time goes today
@@ -32,14 +32,14 @@ Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 
 
 ```
 LWC (lwc/LWC.vhd, frozen) ── PreProcessor / PostProcessor / header FIFO
-└─ CryptoCore            brody/base/CryptoCore.vhd           control FSM, perm_cnt_int, data_cnt_int
-   └─ elephant_datapath  brody/base/elephant_datapath.vhd    ms_reg (state), tag_out, load_data_output, mask muxes
-      ├─ elephant_perm          brody/base/elephant_perm.vhd          Spongent-π[160], combinational
-      └─ elephant_datapath_lfsr brody/base/elephant_datapath_lfsr.vhd mask window φ^(a-1), φ^a, φ^(a+1)
+└─ CryptoCore            brody/base_r10/CryptoCore.vhd           control FSM, perm_cnt_int, data_cnt_int
+   └─ elephant_datapath  brody/base_r10/elephant_datapath.vhd    ms_reg (state), tag_out, load_data_output, mask muxes
+      ├─ elephant_perm          brody/base_r10/elephant_perm.vhd          Spongent-π[160], combinational
+      └─ elephant_datapath_lfsr brody/base_r10/elephant_datapath_lfsr.vhd mask window φ^(a-1), φ^a, φ^(a+1)
 ```
 
 **The permutation loop:** `ms_reg → elephant_perm (PERM_ROUNDS_PER_CYCLE rounds) → ms_reg`
-([elephant_datapath.vhd:200-201](brody/base/elephant_datapath.vhd#L200-L201)). With the current
+([elephant_datapath.vhd:200-201](brody/base_r10/elephant_datapath.vhd#L200-L201)). With the current
 `PERM_ROUNDS_PER_CYCLE = 10`, one permutation takes 8 cycles.
 
 **Baseline numbers** (`reports/benchmark.csv`, `reports/profile.csv`):
@@ -149,7 +149,7 @@ keystream for block k+1 has to live somewhere other than `ms_reg` while the MAC 
 block. This option also builds most of the FSM that C and D need.
 
 **As built ([brody/r4_B/](brody/r4_B/README.md)).** It follows the plan above, with these differences:
-- **Keystream mask.** KS(k+1) needs cur ⊕ next, a mask leg `brody/base` doesn't have. The 6-way select became
+- **Keystream mask.** KS(k+1) needs cur ⊕ next, a mask leg `brody/base_r10` doesn't have. The 6-way select became
   `src xor mask` (`src_sel`: ms / input block / N‖0 / tag; `mask_sel`: none / prev / prev⊕next / cur⊕next / L).
 - **Nonce.** It comes straight from `npub_out` (`SRC_NONCE`). Otherwise it would overwrite C(k) in
   `load_data_output` while C(k) waits for its MAC. The MAC start captures `C(k) ⊕ masks` into `ms_reg` in one
@@ -479,6 +479,6 @@ and timing directives reach 191.2 MHz but with +17% LUTs (969 Kbps/LUT); area di
    one or two LUTs per state bit for functions the algorithm needs, and the rounds are within about 6% of
    their packing floor.
 
-Every variant goes in its own directory, named as in [README.md](README.md) (copy `brody/base`, fix `filelist.txt`,
+Every variant goes in its own directory, named as in [README.md](README.md) (copy `brody/base_r10`, fix `filelist.txt`,
 keep the entity name `CryptoCore`). Then run `make sim-all`, `make cycles`, `make profile WL=long|short`, `make synth`
 and `make report`, as described in the README's Benchmarking section.

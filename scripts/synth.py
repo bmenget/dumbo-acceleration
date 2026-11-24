@@ -162,7 +162,7 @@ def synth_core(core, period0, max_iter, flow="base"):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--core", required=True, help="core name: path under rtl/ (e.g. brody/base, merged/pipe16x2d16_ILN)")
+    ap.add_argument("--core", required=True, help="core name: path under rtl/ (e.g. brody/base_r10, merged/ring32_ILN)")
     ap.add_argument("--period0", type=float, default=None,
                     help="first clock target in ns (default: fmax.py's probe predicted from the rounds per cycle)")
     ap.add_argument("--max-iter", type=int, default=fmax.MAX_RUNS, help="Vivado runs at most")

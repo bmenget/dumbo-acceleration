@@ -1,6 +1,6 @@
 # How Dumbo v2 works
 
-A short guide to what the algorithm computes, what it costs, and how our baseline hardware (`rtl/brody/base/`)
+A short guide to what the algorithm computes, what it costs, and how our baseline hardware (`rtl/brody/base_r10/`)
 schedules that work. For the full definition see the [Elephant v2 spec](docs/elephantv2-spec.pdf)
 (Algorithms 1 and 2, Section 2.3); the C reference is
 [`model/crypto_aead/elephant160v2/ref/encrypt.c`](model/crypto_aead/elephant160v2/ref/encrypt.c).

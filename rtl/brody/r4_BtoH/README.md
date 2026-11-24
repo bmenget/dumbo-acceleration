@@ -70,7 +70,7 @@ only because a new call could go into any stage register.
   muxes, result, tag, keystream FIFO, control and wrapper. In G the same rounds took 3832 sites (less of
   the round logic packed two cells per site; the cause wasn't isolated).
 - Throughput at 174.6 MHz: **5653 Mbps long PT**, 5571 Mbps long AD, **1029 Kbps/LUT** (r4_BtoG 715,
-  ×1.44; r4_BtoF 467, ×2.2; brody/base ×5.6); 1536 B PT 4565 Mbps; 16 B PT 248 Mbps.
+  ×1.44; r4_BtoF 467, ×2.2; brody/base_r10 ×5.6); 1536 B PT 4565 Mbps; 16 B PT 248 Mbps.
 - Critical path: no longer the rounds. The top paths are the frozen wrapper's PreProcessor
   (`decrypt_internal`, `FSM_onehot_pr_state`) through the loader's handshake into `dp/ib` and `dp/kh`
   (7–8 levels, 78% routing). The round path, `r` → 4 rounds → 2:1 result mux → `res`, has 0.15 ns of

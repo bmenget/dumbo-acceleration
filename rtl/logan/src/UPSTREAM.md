@@ -27,18 +27,18 @@ sets them in `defines.txt` (one `NAME=VALUE` per line); `make sim` passes them t
 | Core | Defines | Logan's own result (newer wrapper, Vivado 2024.1, his Fmax search) |
 |---|---|---|
 | `logan/r4` | `DUMBO_R=4` | iterative, 50 cycles/block |
-| `logan/pipe20x2d16` | `DUMBO_S=20 DUMBO_K=2 DUMBO_D=16` | 218.6 MHz, 5,586 LUT, 7.0 Gbps |
-| `logan/pipe10x2d8` | `DUMBO_S=10 DUMBO_K=2 DUMBO_D=8` | 230.4 MHz, 3,750 LUT, 4.61 Gbps |
-| `logan/pipe16x1d16` | `DUMBO_S=16 DUMBO_K=1 DUMBO_D=16` | 3.43 Gbps |
+| `logan/ring40` | `DUMBO_S=20 DUMBO_K=2 DUMBO_D=16` | 218.6 MHz, 5,586 LUT, 7.0 Gbps |
+| `logan/ring20` | `DUMBO_S=10 DUMBO_K=2 DUMBO_D=8` | 230.4 MHz, 3,750 LUT, 4.61 Gbps |
+| `logan/ring16` | `DUMBO_S=16 DUMBO_K=1 DUMBO_D=16` | 3.43 Gbps |
 
 Modified configurations (our additions; `rtl/logan/src/` itself stays unchanged):
 
 | Core | Change | Result in our flow |
 |---|---|---|
-| `merged/pipe20x2d16_I` | our option I: register slices on `bdi` / `bdo` (`CryptoCore_slice_shim.sv`), see its `README.md` | 245.2 MHz (base 222.5), 5607 LUT, 7892 Mbps, 1408 Kbps/LUT |
-| `merged/pipe20x2d16_IL` | pipe20x2d16_I + a key slice + our option L in a modified copy of `CryptoCorePipe.sv` (KB / TI data selects from registers), see its `README.md` | 249.2 MHz, 5700 LUT, 8021 Mbps, 1407 Kbps/LUT |
-| `merged/pipe16x2d16_ILN` | pipe20x2d16_IL + our option N: a **32-round ring with two entry/exit points** (modified copy of `spongent_perm_pipe.sv`, parameter P), see its `README.md` | 247.1 MHz, 5176 LUT, 8000 Mbps, **1546 Kbps/LUT** |
-| `merged/pipe10x2d8_IL` | the pipe20x2d16_IL shim and core copy at S=10, K=2, D=8, see its `README.md` | 244.1 MHz (base 215.4), 3865 LUT, 4807 Mbps, 1244 Kbps/LUT |
+| `merged/ring40_I` | our option I: register slices on `bdi` / `bdo` (`CryptoCore_slice_shim.sv`), see its `README.md` | 245.2 MHz (base 222.5), 5607 LUT, 7892 Mbps, 1408 Kbps/LUT |
+| `merged/ring40_IL` | ring40_I + a key slice + our option L in a modified copy of `CryptoCorePipe.sv` (KB / TI data selects from registers), see its `README.md` | 249.2 MHz, 5700 LUT, 8021 Mbps, 1407 Kbps/LUT |
+| `merged/ring32_ILN` | ring40_IL + our option N: a **32-round ring with two entry/exit points** (modified copy of `spongent_perm_pipe.sv`, parameter P), see its `README.md` | 247.1 MHz, 5176 LUT, 8000 Mbps, **1546 Kbps/LUT** |
+| `merged/ring20_IL` | the ring40_IL shim and core copy at S=10, K=2, D=8, see its `README.md` | 244.1 MHz (base 215.4), 3865 LUT, 4807 Mbps, 1244 Kbps/LUT |
 
 His numbers are not comparable with ours (different wrapper version, Vivado version and Fmax search); run
 our flow for numbers that are.

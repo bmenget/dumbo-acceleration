@@ -1,9 +1,9 @@
-# merged/pipe20x2d16_I: Logan's 20×2 ring behind our option I
+# merged/ring40_I: Logan's 20×2 ring behind our option I
 
 Logan's `CryptoCorePipe` (rtl/logan/src/, unmodified; S = 20, K = 2, D = 16 from `defines.txt`) with our option I
 (see [brody/r4_BtoI](../../brody/r4_BtoI/README.md)): 2-entry register slices between the
 LWC wrapper and the core, in `CryptoCore_slice_shim.sv` (module `CryptoCore`, replacing his
-`CryptoCore_pipe_shim.sv`). Compared against [logan/pipe20x2d16](../../logan/pipe20x2d16/).
+`CryptoCore_pipe_shim.sv`). Compared against [logan/ring40](../../logan/ring40/).
 
 ## Why
 In our flow his ring has a lot of slack (no ring path among the 1000 worst at 4.134 ns); the clock was set by

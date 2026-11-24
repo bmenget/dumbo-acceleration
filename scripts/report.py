@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Benchmark report: one row per v2 core, in the format of GMU's LWC benchmark tables
-(Mohajerani et al., ePrint 2023/484, Tables 12 and 14), plus speedups against the baseline brody/base.
+(Mohajerani et al., ePrint 2023/484, Tables 12 and 14), plus speedups against the baseline brody/base_r10.
 
 Inputs for each core:
   - measured cycles: build/sim/questa/<core>/cycles/timing.csv (`make cycles`). Encryptions with a
@@ -36,7 +36,7 @@ import metrics  # noqa: E402
 SIMS = ROOT / "build" / "sim" / "questa"
 SYNTH = ROOT / "reports" / "synth_results.csv"
 OUT = ROOT / "reports" / "benchmark.csv"
-BASELINE = "brody/base"
+BASELINE = "brody/base_r10"
 
 COLS = ["core", "rounds", "cycles_per_perm", "fmax_mhz", "luts", "ffs",
         "thr_pt_long", "thr_pt_1536", "thr_pt_64", "thr_pt_16",

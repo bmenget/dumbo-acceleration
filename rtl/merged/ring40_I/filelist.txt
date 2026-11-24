@@ -10,5 +10,5 @@ rtl/shared/lwc/PostProcessor.vhd
 rtl/shared/lwc/LWC.vhd
 rtl/logan/src/spongent_round.sv
 rtl/logan/src/spongent_perm_pipe.sv
-rtl/merged/pipe20x2d16_IL/CryptoCorePipe.sv
-rtl/merged/pipe20x2d16_IL/CryptoCore_slice_shim.sv
+rtl/logan/src/CryptoCorePipe.sv
+rtl/merged/ring40_I/CryptoCore_slice_shim.sv

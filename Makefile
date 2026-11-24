@@ -2,13 +2,13 @@
 #
 # CORE selects the RTL: rtl/<CORE>/ (filelist.txt in compile order); the name is the path under rtl/.
 #   gmu/arch1_v1   Elephant v1, GMU arch-1, unmodified: the validation control
-#   brody/base     Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
+#   brody/base_r10     Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
 #   brody/*        our v2 cores (base_rN: rounds per cycle; r4_BtoJ: options B through J at 4 rounds/stage)
 #   logan/*        Logan's SystemVerilog cores (shared sources in rtl/logan/src/); sizes in rtl/<CORE>/defines.txt
 #   merged/*       Logan's cores with our options, and our cores with his ideas
 #   attic/*        superseded cores, kept buildable
 # The spec (C model and vectors) is v1 for gmu/* cores and v2 for every other core.
-# SPEC=v1 / SPEC=v2 without CORE is a shorthand for CORE=gmu/arch1_v1 / CORE=brody/base.
+# SPEC=v1 / SPEC=v2 without CORE is a shorthand for CORE=gmu/arch1_v1 / CORE=brody/base_r10.
 #
 # SET picks the vector set for `make sim` (sim-all runs every validation set for the spec):
 #   gmu     v1 only. GMU's shipped 3201 vectors. Use to confirm the flow/simulator/testbench
@@ -44,7 +44,7 @@
 
 SPEC_DEFAULT := v2
 CORE_v1 := gmu/arch1_v1
-CORE_v2 := brody/base
+CORE_v2 := brody/base_r10
 ifeq ($(origin CORE),undefined)
 CORE := $(CORE_$(if $(SPEC),$(SPEC),$(SPEC_DEFAULT)))
 endif
@@ -172,7 +172,7 @@ profile:
 synth:
 	python3 scripts/synth.py --core $(CORE) $(if $(PERIOD0),--period0 $(PERIOD0))
 
-# Every v2 core with measured cycles, joined with its latest synthesis, against the baseline brody/base.
+# Every v2 core with measured cycles, joined with its latest synthesis, against the baseline brody/base_r10.
 report:
 	python3 scripts/report.py
 

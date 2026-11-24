@@ -1,14 +1,14 @@
 # Reports
 
 What each CSV in this folder holds, column by column, and why we track it. Every row is keyed by `core`, the
-core's path under `rtl/` (`rtl/<core>/`; naming in `rtl/README.md`). `brody/base` is the baseline that every other core
+core's path under `rtl/` (`rtl/<core>/`; naming in `rtl/README.md`). `brody/base_r10` is the baseline that every other core
 is compared against. Rows written before 2026-11-23 had old names (`v2`, `v2_r4_optBCD`, …); they were renamed in place
 (`rtl/RENAMES.csv`).
-`brody/base_r1` is a reference point, not an optimization: `brody/base` at one round per cycle, the configuration of
+`brody/base_r1` is a reference point, not an optimization: `brody/base_r10` at one round per cycle, the configuration of
 `Elephant_GMU` in GMU's benchmark paper (see `rtl/brody/base_r1/README.md`).
-`brody/base_r4`, `brody/base_r5`, `brody/base_r8` and `brody/base_r16` are the same kind of reference: `brody/base` at other unroll factors.
+`brody/base_r4`, `brody/base_r5`, `brody/base_r8` and `brody/base_r16` are the same kind of reference: `brody/base_r10` at other unroll factors.
 A core named `rN_<options>` (e.g. `brody/r4_B`) applies optimizations to `brody/base_rN`. Judge its gain against
-that `base_rN` row, not against `brody/base` (the `x_` columns are always relative to `brody/base`).
+that `base_rN` row, not against `brody/base_r10` (the `x_` columns are always relative to `brody/base_r10`).
 
 | File | Written by | One row per |
 |---|---|---|
@@ -32,7 +32,7 @@ All messages are encryptions with a reused key.
 | `pct_long_1536`, `pct_long_64`, `pct_long_16` | That size's throughput as % of long | How much per-message overhead costs short messages |
 | `thr_ad_long`, `ad_pt_ratio` | Long-message AD-only throughput, and AD over plaintext | AD needs one permutation per block, plaintext two |
 | `kbps_per_lut_pt`, `kbps_per_lut_ad` | Long throughput per LUT | Efficiency. Shows whether a speedup was just bought with area. |
-| `x_thr_pt_long`, `x_thr_pt_16`, `x_kbps_per_lut_pt` | This core divided by `brody/base` (above 1 is better) | Speedup against the baseline, for long messages, short messages, and efficiency |
+| `x_thr_pt_long`, `x_thr_pt_16`, `x_kbps_per_lut_pt` | This core divided by `brody/base_r10` (above 1 is better) | Speedup against the baseline, for long messages, short messages, and efficiency |
 | `cyc_blk_pt`, `cyc_blk_ad` | Steady-state cycles per 20-byte block | Architecture speed, independent of Fmax |
 | `cyc_pt_16`, `cyc_pt_64`, `cyc_pt_1536` | Measured cycles for those plaintext sizes | The raw numbers behind the throughput |
 | `part`, `synth_date`, `cycles_date` | Where and when the numbers came from | Staleness checks |

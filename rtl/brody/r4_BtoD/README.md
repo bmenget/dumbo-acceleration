@@ -57,7 +57,7 @@ the last data block, so its MAC runs in parallel (this was a follow-up item in r
 - `make synth` (PERIOD0=5.5, closed at 6.787 ns after 4 runs): **147.8 MHz, 4732 LUT, 2403 FF**
   (r4_BtoC: 169.5 MHz, 2736 LUT, 1572 FF).
 - `make report`, compared with r4_BtoC:
-  - **Throughput:** 2175 Mbps long PT (×1.74; ×4.03 vs `brody/base`) and 3640 Mbps long AD (×1.50).
+  - **Throughput:** 2175 Mbps long PT (×1.74; ×4.03 vs `brody/base_r10`) and 3640 Mbps long AD (×1.50).
   - **Efficiency:** 459.7 Kbps/LUT for PT, about the same as r4_BtoC's 455.9. AD efficiency falls from 885.7 to 769.2.
   - **16 B PT:** 249 → 213 Mbps, from the lower Fmax and 2 more cycles.
 - Critical path: `batch_done` → loader handshake (`bdi_ready`/`bdo_valid`) → the PostProcessor's FSM, 13 levels

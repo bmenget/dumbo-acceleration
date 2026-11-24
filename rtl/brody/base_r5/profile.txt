@@ -1,4 +1,4 @@
 # Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
 # Each probe is a std_logic that is '1' exactly in the cycles a permutation unit computes rounds.
-# brody/base has one permutation unit; CryptoCore drives perm_en in PERM and PERM_KEY.
+# brody/base_r10 has one permutation unit; CryptoCore drives perm_en in PERM and PERM_KEY.
 perm  perm_en

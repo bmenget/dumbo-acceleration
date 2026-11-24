@@ -1,11 +1,11 @@
 # VHDL-LS sees one core at a time; both define the same entities.
-# Switch brody/base -> gmu/arch1_v1 below to browse the GMU v1 core.
+# Switch brody/base_r10 -> gmu/arch1_v1 below to browse the GMU v1 core.
 [libraries]
 
 [libraries.work]
 files = [
   "rtl/shared/lwc/*.vhd",
-  "rtl/brody/base/*.vhd",
+  "rtl/brody/base_r10/*.vhd",
   "tb/*.vhd",
   "tb/unit/*.vhd",
 ]

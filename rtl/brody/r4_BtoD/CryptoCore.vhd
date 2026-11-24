@@ -557,7 +557,7 @@ begin
                 ks_buf_sel <= '1';
             end if;
             if fill_msg = '0' then
-                -- AD. Block 0 decides "no (more) AD" from bdi_type, as in brody/base; later blocks only
+                -- AD. Block 0 decides "no (more) AD" from bdi_type, as in brody/base_r10; later blocks only
                 -- end on the eot flags.
                 if done_state /= '1' and append_one /= '1' and (first_blk = '0' or bdi_type = HDR_AD) then
                     if bdi_valid = '1' and bdi_type = HDR_AD then

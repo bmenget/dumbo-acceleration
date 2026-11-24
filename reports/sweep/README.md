@@ -65,7 +65,7 @@ named copy.
 | `edge_pass`, `cycles_pass` | 1 if the vector set passed |
 | `fmax_mhz`, `closed`, `best_period_ns`, `wns_ns`, `synth_runs` | Fmax search result, as in `reports/synth_results.csv` (`closed` = 0: no run met timing; Fmax is the best achieved delay, an estimate) |
 | `luts`, `ffs`, `slices`, `bram_tiles`, `dsps` | Area |
-| `thr_*`, `pct_long_*`, `ad_pt_ratio`, `kbps_per_lut_*`, `x_*`, `cyc_*` | Same definitions as `reports/benchmark.csv` (see `reports/README.md`); `x_` columns are relative to `brody/base` |
+| `thr_*`, `pct_long_*`, `ad_pt_ratio`, `kbps_per_lut_*`, `x_*`, `cyc_*` | Same definitions as `reports/benchmark.csv` (see `reports/README.md`); `x_` columns are relative to `brody/base_r10` |
 | `crit_class` | Category of the worst path (below) |
 | `crit_src`, `crit_dst` | Its source and destination registers, shortened (`core/` = CryptoCore, `dp/` = datapath) |
 | `crit_levels`, `crit_route_pct` | Logic levels; share of the delay spent in routing |
