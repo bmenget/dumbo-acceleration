@@ -1,95 +1,111 @@
 # Reports
 
-What each CSV in this folder holds, column by column, and why we track it. Every row is keyed by `core`, the
-core's path under `rtl/` (`rtl/<core>/`; naming in `rtl/README.md`). `brody/base_r10` is the baseline that every other core
-is compared against. Rows written before 2026-11-23 had old names (`v2`, `v2_r4_optBCD`, …); they were renamed in place
-(`rtl/RENAMES.csv`).
-`brody/base_r1` is a reference point, not an optimization: `brody/base_r10` at one round per cycle, the configuration of
-`Elephant_GMU` in GMU's benchmark paper (see `rtl/brody/base_r1/README.md`).
-`brody/base_r4`, `brody/base_r5`, `brody/base_r8` and `brody/base_r16` are the same kind of reference: `brody/base_r10` at other unroll factors.
-A core named `rN_<options>` (e.g. `brody/r4_B`) applies optimizations to `brody/base_rN`. Judge its gain against
-that `base_rN` row, not against `brody/base_r10` (the `x_` columns are always relative to `brody/base_r10`).
+What each CSV here holds and how it is measured. Every row is keyed by `core`, the core's path under `rtl/`
+(naming in [rtl/README.md](../rtl/README.md)). Graphs are in [graphs/](graphs/README.md), the design-space
+sweep in [sweep/](sweep/README.md).
 
 | File | Written by | One row per |
 |---|---|---|
-| `benchmark.csv` | `make report` (rebuilt each run) | core |
-| `profile.csv` | `make profile` (replaces that core and workload's row) | core x workload |
-| `synth_results.csv` | `make synth` (appended) | synthesis of a core |
-| `synth_runs.csv` | `make synth` (appended) | single Vivado run |
+| `benchmark.csv` | `make report` (rebuilt each run) | core: **the headline comparison** |
+| `profile.csv` | `make profile` (replaces that core × workload row) | core × workload |
+| `synth_results.csv` | `make synth` (appended) | synthesis of a core (its best run) |
+| `synth_runs.csv` | `make synth` (appended) | single Vivado run of the Fmax search |
+| `flow_results.csv`, `flow_runs.csv` | `scripts/synth.py --flow tsyn\|perf\|area` | the same, for the Vivado flow study on `brody/r4_BtoI` (not used by `make report`) |
+| `nks_study.csv` | by hand | keystream FIFO depth vs cycles per PT block (`brody/r4_BtoG`, `brody/r2_BtoH`) |
+| `gmu_published.csv` | parsed from `docs/SCA-Benchmarking.pdf` | GMU's unprotected LWC designs (ePrint 2023/484, Tables 12 and 14) |
 
-## benchmark.csv: the headline comparison
-Joins each core's measured cycles (`make cycles`) with its latest Fmax and area (`make synth`). Columns follow
-GMU's LWC finalist benchmark (Mohajerani et al., ePrint 2023/484, Tables 12 and 14), so our cores line up with
-`Elephant_GMU` there. Throughput is in **Mbit/s** and efficiency in **Kbit/s per LUT**, both as in the paper.
-All messages are encryptions with a reused key.
+**Comparing cores.** `brody/base_r10` is the baseline; the `x_` columns are always relative to it. A core
+named `rN_<options>` is built on `brody/base_rN`, so judge its own gain against that row. The `base_rN` cores
+are references, not optimizations: `base_r10` at other rounds per cycle (`base_r1` matches GMU's published
+`Elephant_GMU`).
 
-| Column | Meaning | Why |
-|---|---|---|
-| `rounds`, `cycles_per_perm` | `PERM_ROUNDS_PER_CYCLE` from the core's `elephant_constants.vhd`, and 80 / rounds. Blank if the core has no single value. | Speedups are only comparable when you know whether the unroll factor changed |
-| `fmax_mhz`, `luts`, `ffs` | From the core's latest synthesis | Clock rate and area (paper Table 14) |
-| `thr_pt_long` | Long-message plaintext throughput: bits added between 160 B and 1536 B plaintext, over the cycles added | Steady-state speed with per-message overhead removed (the paper's "Long") |
-| `thr_pt_1536`, `thr_pt_64`, `thr_pt_16` | Plaintext-only messages (0 B AD) of that size: `8 x bytes x Fmax / cycles` | Real throughput at each size (paper Table 12) |
-| `pct_long_1536`, `pct_long_64`, `pct_long_16` | That size's throughput as % of long | How much per-message overhead costs short messages |
-| `thr_ad_long`, `ad_pt_ratio` | Long-message AD-only throughput, and AD over plaintext | AD needs one permutation per block, plaintext two |
-| `kbps_per_lut_pt`, `kbps_per_lut_ad` | Long throughput per LUT | Efficiency. Shows whether a speedup was just bought with area. |
-| `x_thr_pt_long`, `x_thr_pt_16`, `x_kbps_per_lut_pt` | This core divided by `brody/base_r10` (above 1 is better) | Speedup against the baseline, for long messages, short messages, and efficiency |
-| `cyc_blk_pt`, `cyc_blk_ad` | Steady-state cycles per 20-byte block | Architecture speed, independent of Fmax |
-| `cyc_pt_16`, `cyc_pt_64`, `cyc_pt_1536` | Measured cycles for those plaintext sizes | The raw numbers behind the throughput |
-| `part`, `synth_date`, `cycles_date` | Where and when the numbers came from | Staleness checks |
-| `checks` | `cycles_failed`, `cycles_stale`, `synth_stale`, `no_synth`, `other_part`, `not_closed` | Flags numbers you shouldn't trust or report yet |
+## benchmark.csv
+Joins each core's measured cycles (`make cycles`) with its latest synthesis (`make synth`). Columns follow GMU's
+benchmark tables so our cores line up with `Elephant_GMU`: throughput in **Mbit/s**, efficiency in
+**Kbit/s per LUT**. All messages are encryptions with a reused key.
 
-## profile.csv: where the cycles go
-Covers one encryption (new key) plus one decryption (same key), clock cycle by clock cycle.
+| Column | Meaning |
+|---|---|
+| `rounds`, `cycles_per_perm` | `PERM_ROUNDS_PER_CYCLE` and 80 / rounds; blank if the core has no single value |
+| `fmax_mhz`, `luts`, `ffs` | From the latest synthesis |
+| `thr_pt_long` | Long-message plaintext throughput: bits added between 160 B and 1536 B, over the cycles added. Per-message overhead removed (the paper's "Long") |
+| `thr_pt_1536`, `thr_pt_64`, `thr_pt_16` | Plaintext-only messages of that size: `8 × bytes × Fmax / cycles` |
+| `pct_long_1536`, `_64`, `_16` | That size's throughput as % of long: what per-message overhead costs |
+| `thr_ad_long`, `ad_pt_ratio` | Long-message AD-only throughput, and AD / PT (AD needs one permutation per block, PT two) |
+| `kbps_per_lut_pt`, `kbps_per_lut_ad` | Long throughput per LUT: was the speedup just bought with area? |
+| `x_thr_pt_long`, `x_thr_pt_16`, `x_kbps_per_lut_pt` | This core ÷ `brody/base_r10` (above 1 is better) |
+| `cyc_blk_pt`, `cyc_blk_ad` | Steady-state cycles per 20-byte block: architecture speed, independent of Fmax |
+| `cyc_pt_16`, `cyc_pt_64`, `cyc_pt_1536` | Raw measured cycles behind the throughputs |
+| `part`, `synth_date`, `cycles_date` | Where and when the numbers came from |
+| `checks` | Numbers not to trust: `cycles_failed`, `cycles_stale` / `synth_stale` (RTL changed after the measurement), `no_synth`, `other_part`, `not_closed` |
 
-| Column | Meaning | Why |
-|---|---|---|
-| `window_cycles` | Cycles from the first activity to the last | Total time being classified |
-| `busy_io_pct` | A permutation unit is busy **and** a word moves | Overlap. Optimizations should raise it. |
-| `busy_pct` | A unit is busy, no I/O | Pure compute |
-| `io_pct` | I/O while no unit is busy | Permutation idle while waiting for data |
-| `neither_pct` | No unit busy and no I/O | Control or wait overhead |
-| `any_busy_pct` | `busy_io_pct + busy_pct` | Permutation utilization |
-| `unit_busy` | Busy cycles per unit (labels from `profile.txt`) | Shows each unit's load. Should equal permutations x cycles per permutation. |
-| `units_concurrent` | Share of cycles with 0, 1, 2... units busy | Shows whether multiple units actually run in parallel |
-| `in_words`, `out_words` | 32-bit words in and out | Sanity check. Depends only on the workload, so it must match across cores. |
+Current flags: `brody/base_r4` is `not_closed` (its search stopped at a loose target), and `brody/gen` is
+stale (use `sweep/` for it).
 
-The four `_pct` categories sum to 100%. The baseline's long run is 0% overlap, 56% compute and 44% idle
-permutation. That idle 44% is the target.
+## How each number is measured
 
-## synth_results.csv: one result per synthesis
-The best run of each `make synth`. `make report` uses the latest row for each core.
+**Cycles (`make cycles`).** Runs the `cycles` set (81 messages on an AD × PT grid, plus plaintext-only 16 B and
+64 B) with `LWC_TB` in timing mode. Each message's time runs from the first input word accepted to the final
+status word. Outputs are still checked, so wrong RTL fails instead of giving numbers.
 
-| Column | Meaning | Why |
-|---|---|---|
-| `rounds`, `cycles_per_perm` | Rounds per clock and cycles per permutation, read from the core's RTL | Fmax and area depend strongly on the unroll factor |
-| `closed` | 1 if some run met timing | 0 means Fmax is only an estimate |
-| `best_period_ns`, `wns_ns` | Fastest clock target that met timing, and its slack | Raw timing result |
-| `fmax_mhz` | `1000 / (period - WNS)` | Maximum clock. Noise is about ±0.3 ns, so ignore differences under about 5%. |
-| `luts`, `ffs`, `slices` | Logic, registers, occupied slices | Area cost |
-| `bram_tiles`, `dsps` | Block RAMs and DSPs used | Should stay 0. Nonzero means Vivado inferred something unexpected. |
-| `runs` | Vivado runs the Fmax search took | Effort and confidence |
-| `part`, `vivado` | FPGA part and tool version | Results are only comparable on the same part and version |
+**Profile (`make profile WL=short|long`).** One encryption (new key) plus one decryption (same key) of 16+16 B
+or 1536+1536 B. Questa dumps the core's handshakes and the busy probes listed in `rtl/<core>/profile.txt` (one
+`std_logic` per permutation unit or stage, '1' while it computes), and `scripts/profile.py` classifies every cycle.
 
-## synth_runs.csv: every Vivado run
-Same columns as above, but one row per iteration of the Fmax search: `iter`, the target `period_ns`, `met`,
-`fmax_est_mhz` and `runtime_s`. Use it to see how the search converged and to judge run-to-run noise. Reports
-use `synth_results.csv` instead.
+**Fmax and area (`make synth`).**
+- **Fixed flow:** out-of-context synthesis, opt, place, phys_opt, route on `xc7a100tftg256-2L`. No I/O
+  constraints, so only paths inside the design are timed.
+- **Fmax search (`scripts/fmax.py`):** a met run at target period P supports any period ≥ P − WNS, so
+  Fmax = 1000 / (P − WNS). The first target is 8% tighter than a delay predicted from the rounds per stage and the calls in flight (Vivado
+  works hardest under a tight target). After a failure it retargets at the achieved delay + 5% (then 10%,
+  15%); after a met run it stops if a tighter failed run brackets it. At most 4 runs; the best met run wins.
+  `PERIOD0=<ns>` overrides the first target.
+- **Noise:** about ±0.3 ns run to run. Ignore Fmax differences under ~5%. If a result looks out of line, check
+  the run history in `synth_runs.csv` and re-run from the met period.
+- **Files:** `build/synth/<core>/p<period>/` holds each run's logs and `timing.rpt`, plus `paths.tsv` (worst path
+  to each of up to 1000 endpoints).
 
-## FPGA options
-Set by `PART` at the top of `scripts/synth.py`. All results use **`xc7a100tftg256-2L`**.
+**Critical path (`python3 scripts/critpath.py --core <core>`).** Classifies the worst paths of a core's latest
+synthesis and lists the 3 worst *distinct* categories, with how much the period could shrink before each next
+one becomes critical. Categories are in [sweep/README.md](sweep/README.md).
 
-| Option | Vivado part | Pros | Cons |
-|---|---|---|---|
-| **CW305 / paper part (current)** | `xc7a100tftg256-2L` | Same device GMU used to benchmark the LWC finalists (ePrint 2023/484), so our numbers compare directly with `Elephant_GMU` (222 MHz, 1,375 LUTs, 151 Kbps/LUT). It's the XC7A100T. | -2L is a faster grade than most student boards |
-| Nexys / Arty A7-100T | `xc7a100tcsg324-1` | Common student board. Same chip. | Slowest speed grade. Not comparable to the paper. |
-| GMU Round 2 part | `xc7a12tcpg238-3` | GMU's earlier LWC benchmarks used a 12T | Tiny device, fastest grade. Neither our target nor the paper's. |
+## profile.csv
+| Column | Meaning |
+|---|---|
+| `window_cycles` | Cycles from the first activity to the last |
+| `busy_io_pct` | A unit is busy **and** a word moves: the overlap optimizations want |
+| `busy_pct` | A unit is busy, no I/O |
+| `io_pct` | I/O while every unit is idle |
+| `neither_pct` | No unit busy, no I/O: control or waiting |
+| `any_busy_pct` | `busy_io_pct + busy_pct` |
+| `unit_busy` | Busy cycles per probe (should equal permutations × cycles per permutation) |
+| `units_concurrent` | Share of cycles with 0, 1, 2, … units busy |
+| `in_words`, `out_words` | 32-bit words in and out; depends only on the workload, so must match across cores |
 
-Notes:
-- **Only the speed grade affects our numbers.** Synthesis is out-of-context (no I/O pins), so the package doesn't
-  matter, and the same chip gives the same LUT and FF counts. Fmax changes with the grade.
-- **Never compare Fmax or throughput across parts.** `make report` flags `other_part` when a core's latest synthesis
-  was on a different part.
-- **Changing `PART` means re-synthesizing every core**, including the baseline. Cycle counts don't depend on the
-  part.
-- -2L is Xilinx's low-power bin of the -2 speed grade, with an extended (E) temperature range.
-- Older rows in `synth_results.csv` used other parts; check the `part` column.
+The four `_pct` categories sum to 100%. Baseline, long workload: 0% overlap, 56% compute, 44% with the
+permutation idle. That idle 44% is what the optimizations go after.
+
+## synth_results.csv and synth_runs.csv
+| Column | Meaning |
+|---|---|
+| `rounds`, `cycles_per_perm` | Read from the core's RTL |
+| `closed` | 1 if some run met timing; 0 means Fmax is an estimate |
+| `best_period_ns`, `wns_ns`, `fmax_mhz` | Fastest met target, its slack, and `1000 / (period − WNS)` |
+| `luts`, `ffs`, `slices` | Area |
+| `bram_tiles`, `dsps` | Should be 0; nonzero means Vivado inferred something unexpected |
+| `runs` | Vivado runs the search took |
+| `part`, `vivado` | Results are only comparable on the same part and tool version |
+
+`synth_runs.csv` has one row per run instead, with `iter`, the target `period_ns`, `met`, `fmax_est_mhz` and
+`runtime_s`.
+
+## Target part
+All results use **`xc7a100tftg256-2L`** (set by `PART` in `scripts/synth.py`): the CW305 board's FPGA and the
+part GMU used for ePrint 2023/484, so our numbers compare directly with `Elephant_GMU` (222 MHz, 1375 LUT,
+151 Kbps/LUT).
+- Synthesis is out of context, so only the speed grade matters: the same chip gives the same LUT/FF counts in
+  any package, but Fmax changes with the grade. A Nexys/Arty A7-100T (`xc7a100tcsg324-1`) would be slower and
+  not comparable to the paper.
+- Never compare Fmax or throughput across parts; `make report` flags `other_part`. Changing `PART` means
+  re-synthesizing every core.
+- Some older rows in `synth_results.csv` used other parts; check the `part` column.

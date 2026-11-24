@@ -72,9 +72,9 @@ Window w(j) = φ^(a−1+j).
 - **The LFSR is set up in one load plus one multi-step** (r4_BtoD: load + 4/2/1 steps).
 - **`G_FAST_LOADER` exists**; r4_BtoD always spends a decision cycle per block (= `false`).
 
-## Status (2026-11-19)
-- Compiles (Questa `vcom`). Elaborates (`vopt`, nothing simulated) for R/S/U = 1/1/1, 4/1/1, 3/3/1,
-  12/1/1, 6/2/1, 4/2/3, 5/1/4 (fast), 16/4/8 (fast) and 8/2/2. These cover N = 1, odd N, a partial last
-  pass, a non-zero result offset and the largest point.
-- **Not simulated yet.** The next step is the manual check against r4_BtoD at the checked-in configuration
-  (`make sim-all CORE=brody/gen`, `make cycles CORE=brody/gen`, `make synth CORE=brody/gen`) before any sweep.
+## Status
+- At the checked-in configuration it passes `make sim-all` (random, edge, full33, long, badtag) on the current
+  RTL. Its `make cycles` run and synthesis predate the last RTL change, so its `reports/benchmark.csv` row is
+  flagged stale.
+- The sweep (`reports/sweep/`) validated 111 points with the `edge` and `cycles` sets and synthesized them;
+  results and findings are in [reports/sweep/README.md](../../../reports/sweep/README.md).

@@ -1,9 +1,9 @@
 # RTL: how cores are named, and every core at a glance
 
 A core's name is its path under `rtl/`, and that name is used everywhere: `make sim CORE=brody/r4_BtoJ`, the
-build folders (`build/synth/brody/r4_BtoJ/`), the `core` column of `reports/*.csv`, and the graphs.
-Old names (`core_v2_r4_optBCDEFGHIJ`, `v2_logan_pipe20x2d16_optIL`, …) are mapped to new ones in
-[RENAMES.csv](RENAMES.csv), for reading older notes and `docs/ai_usage_log.md`.
+build folders, the `core` column of `reports/*.csv`, and the graphs. Old names (`core_v2_r4_optBCDEFGHIJ`,
+`pipe20x2d16_IL`, …) map to current ones in [RENAMES.csv](RENAMES.csv). What each option does:
+[ACCELERATION.md](ACCELERATION.md).
 
 ## Folders
 | Folder | Contents |
@@ -18,23 +18,19 @@ Old names (`core_v2_r4_optBCDEFGHIJ`, `v2_logan_pipe20x2d16_optIL`, …) are map
 ## Name rules
 - **`base_rN`**: our v2 port of `gmu/arch1_v1` at N rounds per cycle (`PERM_ROUNDS_PER_CYCLE`); the `base_rN` cores
   differ only in that constant. **`base_r10`** keeps GMU's shipped default of 10 and is the baseline of every speedup;
-  **`base_r1`** matches the published Elephant_GMU (1 round per cycle). `base_r10` was called `base` until 2026-11-23.
-- **`rN_<first>to<last>`**: an optimized core with options *first* through *last* of
-  [ACCELERATION.md](ACCELERATION.md) at N rounds per pipeline stage. The options were added in order, each core
-  on top of the previous one, so `r4_BtoJ` has B, C, D, … J. A core with a single option is `r4_B`.
+  **`base_r1`** matches the published Elephant_GMU (1 round per cycle).
+- **`rN_<first>to<last>`**: options *first* through *last* at N rounds per pipeline stage. Options were added in
+  order, each core on top of the previous one, so `r4_BtoJ` has B, C, D, … J. A single option is `r4_B`.
 - **Rings** (Logan's pipelined cores): `ring<N>` = a ring holding N Spongent rounds in total (S stages × K rounds per
   stage), the number that sets long-message throughput: `ring40` (20×2), `ring20` (10×2), `ring16` (16×1). S, K and the
   keystream FIFO depth D are in each folder's `defines.txt` (`DUMBO_S/K/D`). His iterative core keeps `r4`.
 - **Merged cores**: `ring<N>_<our options>` lists only the options added to his ring (`ring40_IL` = `ring40` + our I
   and L; `ring32_ILN` = a 16×2 ring with two entry points, option N, on top of I and L). Our core with his idea keeps
-  our name (`r2_BtoM`). Until 2026-11-24 the rings were named by Logan's configuration, `pipe<S>x<K>d<D>`
-  (`pipe20x2d16_IL`, …); `RENAMES.csv` maps them, and the SystemVerilog file headers still use those names.
-- Options K–N have no section in ACCELERATION.md yet; their tables and each core's `README.md` describe them.
+  our name (`r2_BtoM`). The SystemVerilog file headers still use Logan's old `pipe<S>x<K>d<D>` names.
 
 ## Every core
-Numbers: Vivado on xc7a100tftg256-2L (see the root README's Benchmarking section); long-message plaintext
-throughput; cycles per 20-byte PT block on long messages; cycles for a 16 B plaintext message. Source:
-`reports/benchmark.csv`.
+From `reports/benchmark.csv` (Vivado, xc7a100tftg256-2L). Mbps and Kbps/LUT are long-message plaintext;
+cyc/block is cycles per 20-byte PT block on long messages; cyc 16 B is a whole 16-byte message.
 
 | Core | Builds on | Status | Fmax (MHz) | LUT | Mbps | Kbps/LUT | cyc/block | cyc 16 B |
 |---|---|---|---|---|---|---|---|---|
@@ -70,5 +66,5 @@ throughput; cycles per 20-byte PT block on long messages; cycles for a 16 B plai
 | [merged/ring32_ILN](merged/ring32_ILN/README.md) | merged/ring40_IL | **best Kbps/LUT of all cores** | 247.1 | 5176 | 8000 | 1546 | 4.94 | 144 |
 | [merged/r2_BtoM](merged/r2_BtoM/README.md) | brody/r2_BtoL + Logan's no-delay-line idea | tried, not adopted | 200.8 | 5725 | 6501 | 1136 | 4.94 | 152 |
 
-`brody/base_r4` did not close timing at its best target (`not_closed` in `reports/benchmark.csv`), and
-`brody/gen`'s numbers predate its last RTL change (`cycles_stale synth_stale`); use `reports/sweep/` for it.
+Caveats: `brody/base_r4` did not close timing at its best target (`not_closed`), and `brody/gen`'s row predates
+its last RTL change; use `reports/sweep/` for it.

@@ -20,5 +20,5 @@ Generated sets (`scripts/gen_kat.py`):
 - `prof_short`, `prof_long` (v2): one workload each for `make profile`: encrypt (new key) + decrypt (same key)
   of 16+16 B and 1536+1536 B.
 
-Before 2026-11-19 the custom sets passed `True`/`False` flags, which cryptotvgen misreads (most messages
-loaded a new key). They now pass `1`/`0`, so "same key" really reuses the key.
+Custom sets pass `1`/`0` flags to cryptotvgen: it reads the string `False` as true, so `True`/`False` flags
+(used before 2026-11-19) made most "same key" messages load a new key.
