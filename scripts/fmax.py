@@ -9,22 +9,22 @@ that met timing. Two observations from reports/synth_runs.csv drive the search
     that failed (R=4: 5.67 ns at a 4.5 ns target, never reproduced at looser targets). Once a target is met
     easily, it stops optimizing, so a loose target gives a pessimistic Fmax.
   - Retargeting at the achieved delay rarely meets: the achieved delay moves between runs (first 18
-    retargets: <= 4% in 16; with the core_v2_gen smoke runs, 26: <= 4% in 18, <= 5% in 21, <= 8% in 24;
+    retargets: <= 4% in 16; with the brody/gen smoke runs, 26: <= 4% in 18, <= 5% in 21, <= 8% in 24;
     worst seen +11%). The old rule (next = achieved + 5% of
     the miss) left < 0.5% headroom and met in 4 of 13 such retargets: 2.9 runs per search on average,
-    R=4 never closed, optBC took 5 runs, R=8 met on run 2 and then spent 2 more failing to tighten.
+    R=4 never closed, r4_BtoC took 5 runs, R=8 met on run 2 and then spent 2 more failing to tighten.
 Search:
   1. probe: a tight first target, PROBE x the predicted delay, so Vivado pushes and the achieved delay
      measures what the design can do;
   2. if it fails: next target = achieved x (1 + HEADROOM[k]), k = consecutive failures (5%, 10%, 15%);
   3. if it meets: done when a failed run at a tighter target brackets it; otherwise the target was too loose
-     (small slack proves nothing: optB met 6.0 ns with 0.019 ns slack, then reached 5.43 ns under a
+     (small slack proves nothing: r4_B met 6.0 ns with 0.019 ns slack, then reached 5.43 ns under a
      5.5 ns target), so tighten to achieved x PROBE and continue.
   Stop at MAX_RUNS. Result: the met run with the smallest achieved delay; if none met, the smallest
   achieved delay as an estimate (closed = 0).
 Expected cost: probe + one retarget for most designs (about 2.1 runs, vs. 2.9 with the old rule).
 The reported Fmax is then within about HEADROOM[0] of the probe's best achieved delay; the old rule
-ended 4-13% above it anyway (optBC 5.90 vs 5.56 ns, optBCD 6.76 vs 5.96 ns).
+ended 4-13% above it anyway (r4_BtoC 5.90 vs 5.56 ns, r4_BtoD 6.76 vs 5.96 ns).
 
 Usage:
   fmax.py calibrate          headroom/drift table and predictor fit from synth_runs.csv (+ sweep_runs.csv)
@@ -44,10 +44,10 @@ PART = "xc7a100tftg256-2L"
 # Predicted achievable delay (ns) = max(control floor, permutation path):
 #   permutation path: best achieved delay of the permutation-bound cores (rounds per stage 5, 8, 10, 16)
 #   control floor:    best achieved delay of the rounds-per-stage <= 4 cores, by permutation calls in flight N
-PERM_NS_PER_ROUND = 0.955     # fit: v2_r5, v2_r8, v2 (10), v2_r16
+PERM_NS_PER_ROUND = 0.955     # fit: brody/base_r5, brody/base_r8, v2 (10), brody/base_r16
 PERM_NS_FIXED = 1.29
-CTRL_FLOOR_NS = 4.75          # N = 1: core_v2_gen r4s1u1 4.75 (after the tag-check fix); GMU cores were 5.4-5.7
-CTRL_NS_PER_LOG2N = 0.47      # core_v2_gen r8s2u2 (N=4) 5.69; extrapolated beyond N = 4
+CTRL_FLOOR_NS = 4.75          # N = 1: brody/gen r4s1u1 4.75 (after the tag-check fix); GMU cores were 5.4-5.7
+CTRL_NS_PER_LOG2N = 0.47      # brody/gen r8s2u2 (N=4) 5.69; extrapolated beyond N = 4
 PROBE = 0.92                  # first target = 8% below the prediction (prediction error seen: -9%..+4%)
 HEADROOM = (0.05, 0.10, 0.15) # after 1, 2, 3+ consecutive failures (drift <= 5% in 21 of 26 retargets)
 MAX_RUNS = 4

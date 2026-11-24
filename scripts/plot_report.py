@@ -10,13 +10,13 @@ Inputs (all already in the repo):
   reports/profile.csv          make profile WL=long: where the cycles go
   reports/synth_runs.csv       every Vivado run (target period, WNS, met)
   reports/nks_study.csv        keystream FIFO depth vs cycles per block (measured by hand, see the notes)
-  reports/sweep/sweep.csv      design-space sweep of core_v2_gen (optional)
+  reports/sweep/sweep.csv      design-space sweep of brody/gen (optional)
   build/synth/<core>/.../util_hier.rpt   per-hierarchy area (cores synthesized after it was added)
-  build/sim/questa/v2_r4_optBCDEFGH/prof_long/prof.vcd   slot activity for the timeline
+  build/sim/questa/brody/r4_BtoH/prof_long/prof.vcd   slot activity for the timeline
 
 Graphs (numbered as in the report outline):
   01_cycles_per_block.png      PT and AD cycles per 20 B block along the optimization path, bus limit
-  02_throughput_progress.png   long-message PT throughput per step, speedup over core_v2
+  02_throughput_progress.png   long-message PT throughput per step, speedup over brody/base
   03_fmax_area_progress.png    Fmax and LUT / FF per step
   04_efficiency_progress.png   Kbps/LUT per step against Elephant_GMU and the finalists' average
   05_pareto_all.png            throughput vs LUTs: our cores, the sweep, all GMU-benchmarked finalists
@@ -24,14 +24,14 @@ Graphs (numbered as in the report outline):
   07_efficiency_ranked.png     Kbps/LUT ranking, our cores among the finalists
   08_ad_vs_pt.png              long-message AD vs PT throughput per step
   09_cycle_breakdown.png       permutation / I/O overlap per step (long workload)
-  10_area_breakdown.png        LUT sites and FFs by part: optBCDEFG, optBCDEFGH, r2 variant
+  10_area_breakdown.png        LUT sites and FFs by part: r4_BtoG, r4_BtoH, r2 variant
   11_fmax_vs_rps.png           Fmax vs rounds per stage: sweep, our cores, Elephant_GMU
   12_nks_sensitivity.png       cycles per block vs keystream FIFO depth
   13_slot_timeline.png         every permutation call by kind + bus words: a 16 B message, long steady state
-  14_synth_noise.png           WNS vs target period for optBCDEFG and optBCDEFGH (Vivado noise)
+  14_synth_noise.png           WNS vs target period for r4_BtoG and r4_BtoH (Vivado noise)
   15_thr_vs_luts.png           throughput vs LUTs on linear axes: our path and GMU's finalists only
   16_logan_msgsize.png         throughput vs message size: our two fastest cores against Logan's two fastest
-Logan's SystemVerilog cores (rtl/logan/, CORE=v2_logan_*) appear in 05, 07, 09, 11, 15 and 16, always in aqua (C3)
+Logan's SystemVerilog cores (rtl/logan/src/, CORE=logan/*; with our changes, CORE=merged/*) appear in 05, 07, 09, 11, 15 and 16, always in aqua (C3)
 with square markers; they are not steps of our optimization path.
 """
 import csv
@@ -54,50 +54,52 @@ CONTEXT = "#b9b7ae"
 
 # the optimization path: core, short label, what the step did
 STEPS = [
-    ("v2", "v2", "baseline\nR=10"),
-    ("v2_r4", "r4", "R=4"),
-    ("v2_r4_optB", "+B", "I/O\noverlap"),
-    ("v2_r4_optBC", "+C", "2 units"),
-    ("v2_r4_optBCD", "+D", "2-stage\npipeline"),
-    ("v2_r4_optBCDE", "+E", "stagger\ncalls"),
-    ("v2_r4_optBCDEF", "+F", "fast\nloader"),
-    ("v2_r4_optBCDEFG", "+G", "8 slots"),
-    ("v2_r4_optBCDEFGH", "+H", "stage-0\nloads"),
-    ("v2_r4_optBCDEFGHI", "+I", "registered\nhandshake"),
-    ("v2_r4_optBCDEFGHIJ", "+J", "mask\nselect"),
+    ("brody/base", "base", "baseline\nR=10"),
+    ("brody/base_r4", "base_r4", "R=4"),
+    ("brody/r4_B", "+B", "I/O\noverlap"),
+    ("brody/r4_BtoC", "+C", "2 units"),
+    ("brody/r4_BtoD", "+D", "2-stage\npipeline"),
+    ("brody/r4_BtoE", "+E", "stagger\ncalls"),
+    ("brody/r4_BtoF", "+F", "fast\nloader"),
+    ("brody/r4_BtoG", "+G", "8 slots"),
+    ("brody/r4_BtoH", "+H", "stage-0\nloads"),
+    ("brody/r4_BtoI", "+I", "registered\nhandshake"),
+    ("brody/r4_BtoJ", "+J", "mask\nselect"),
 ]
-REFS = ["v2_r1", "v2_r5", "v2_r8", "v2_r16"]            # core_v2 at other rounds per cycle
-FINAL = "v2_r4_optBCDEFGHIJ"                             # the final core of the optimization path
-R2 = "v2_r2_optBCDEFGHIJKL"                             # 2 rounds per stage: J's RTL + K, L (handshake paths)
-R2H = "v2_r2_optBCDEFGH"                                # ... and before option I
-NICE = {"v2": "core_v2 baseline", FINAL: "optBCDEFGHIJ", "v2_r4_optBCDEFGHI": "optBCDEFGHI", "v2_r4_optBCDEFGH": "optBCDEFGH",
-        "v2_r4_optBCDEFG": "optBCDEFG", "v2_r4_optBCDEF": "optBCDEF", R2: "optBCDEFGHIJKL, 2 rounds/stage",
-        R2H: "optBCDEFGH, 2 rounds/stage", "v2_r1": "core_v2 R=1",
-        "v2_r5": "core_v2 R=5", "v2_r8": "core_v2 R=8", "v2_r16": "core_v2 R=16", "v2_r4": "core_v2 R=4"}
-# Logan's cores (rtl/logan/): same flow, wrapper and part as ours. core, short label, configuration
+REFS = ["brody/base_r1", "brody/base_r5", "brody/base_r8", "brody/base_r16"]            # brody/base at other rounds per cycle
+FINAL = "brody/r4_BtoJ"                             # the final core of the optimization path
+R2 = "brody/r2_BtoL"                             # 2 rounds per stage: J's RTL + K, L (handshake paths)
+R2H = "brody/r2_BtoH"                                # ... and before option I
+NICE = {"brody/base": "base (baseline)", FINAL: "r4_BtoJ", "brody/r4_BtoI": "r4_BtoI", "brody/r4_BtoH": "r4_BtoH",
+        "brody/r4_BtoG": "r4_BtoG", "brody/r4_BtoF": "r4_BtoF", R2: "r2_BtoL",
+        R2H: "r2_BtoH", "brody/base_r1": "base_r1",
+        "brody/base_r5": "base_r5", "brody/base_r8": "base_r8", "brody/base_r16": "base_r16", "brody/base_r4": "base_r4"}
+# Logan's cores (rtl/logan/src/): same flow, wrapper and part as ours. core, short label, configuration
 LOGAN = [
-    ("v2_logan_r4", "Logan R=4", "iterative"),
-    ("v2_logan_pipe16x1d16", "Logan 16×1", "ring"),
-    ("v2_logan_pipe10x2d8", "Logan 10×2", "ring"),
-    ("v2_logan_pipe20x2d16", "Logan 20×2", "ring"),
+    ("logan/r4", "Logan R=4", "iterative"),
+    ("logan/pipe16x1d16", "Logan 16×1", "ring"),
+    ("logan/pipe10x2d8", "Logan 10×2", "ring"),
+    ("logan/pipe20x2d16", "Logan 20×2", "ring"),
 ]
 CL = C3          # Logan's series color (validated with C1 and C2 on all pairs; aqua needs direct labels)
 NICE.update({c: f"{s} {m}" for c, s, m in LOGAN})
-# Logan's rings with our changes (rtl/core_v2_logan_pipe*_opt*): core, short label, name, the core it builds on.
+# Logan's rings with our changes (rtl/merged/pipe*): core, short label, name, the core it builds on.
 # Drawn as hollow aqua squares chained from his base cores, like our optimization path.
 LOGAN_OPT = [
-    ("v2_logan_pipe20x2d16_optI", "+I", "Logan 20×2 + our I", "v2_logan_pipe20x2d16"),
-    ("v2_logan_pipe20x2d16_optIL", "+I, L", "Logan 20×2 + our I, L", "v2_logan_pipe20x2d16_optI"),
-    ("v2_logan_pipe16x2d16_optIL", "32-round ring", "Logan ring 16×2, 2 entry points + our I, L",
-     "v2_logan_pipe20x2d16_optIL"),
-    ("v2_logan_pipe10x2d8_optIL", "+I, L", "Logan 10×2 + our I, L", "v2_logan_pipe10x2d8"),
+    ("merged/pipe20x2d16_I", "+I", "Logan 20×2 + our I", "logan/pipe20x2d16"),
+    ("merged/pipe20x2d16_IL", "+I, L", "Logan 20×2 + our I, L", "merged/pipe20x2d16_I"),
+    ("merged/pipe16x2d16_ILN", "32-round ring", "Logan ring 16×2, 2 entry points + our I, L",
+     "merged/pipe20x2d16_IL"),
+    ("merged/pipe10x2d8_IL", "+I, L", "Logan 10×2 + our I, L", "logan/pipe10x2d8"),
 ]
 NICE.update({c: n for c, _, n, _ in LOGAN_OPT})
-H_NOISE_SINCE = "2026-11-20T14:50"   # optBCDEFGH runs after the keystream FIFO change (final RTL)
+# short labels for the first steps of the r4 path
+NICE.update({"brody/r4_B": "r4_B", "brody/r4_BtoC": "r4_BtoC", "brody/r4_BtoD": "r4_BtoD", "brody/r4_BtoE": "r4_BtoE"})
+H_NOISE_SINCE = "2026-11-20T14:50"   # r4_BtoH runs after the keystream FIFO change (final RTL)
 
 
 def nice(c):
-    return NICE.get(c, c.replace("v2_r4_", ""))
+    return NICE.get(c, c.rsplit("/", 1)[-1])
 
 
 # ---------------------------------------------------------------------------------------------- data
@@ -286,7 +288,7 @@ def g01_cycles(bench):
 def g02_throughput(bench):
     st = steps_in(bench)
     thr = [bench[c]["thr_pt_long"] for c, _, _ in st]
-    base = bench["v2"]["thr_pt_long"]
+    base = bench["brody/base"]["thr_pt_long"]
     fig, ax = plt.subplots(figsize=(9.5, 5))
     ax.bar(range(len(st)), thr, color=C1, width=0.62, edgecolor=SURF, linewidth=2, zorder=2)
     for i, v in enumerate(thr):
@@ -299,7 +301,7 @@ def g02_throughput(bench):
     ax.set_ylabel("long-message plaintext throughput (Mbit/s)")
     ax.set_title("Throughput along the optimization path")
     footer(fig, "Throughput = 160 bits per block × Fmax / cycles per block (GMU's long-message definition); "
-                "labels are speedups over core_v2.")
+                "labels are speedups over the baseline, brody/base.")
     save(fig, "02_throughput_progress.png")
 
 
@@ -393,7 +395,7 @@ def g05_pareto(bench, gmu, sweep):
                 rotation=0, bbox=dict(facecolor=SURF, edgecolor="none", pad=0.5))
     if sweep:
         ax.scatter([p["luts"] for p in sweep], [p["thr_pt_long"] for p in sweep], s=14, color=GRID,
-                   edgecolor=AXIS, linewidth=0.6, label="design-space sweep (core_v2_gen)", zorder=2)
+                   edgecolor=AXIS, linewidth=0.6, label="design-space sweep (brody/gen)", zorder=2)
     fin = [g for g in gmu if g["impl"] != "Elephant_GMU"]
     ax.scatter([g["luts"] for g in fin], [g["thr_pt_long"] for g in fin], s=30, color=MUTED, edgecolor=SURF,
                linewidth=1, label="other LWC finalists (GMU benchmark)", zorder=3)
@@ -409,7 +411,7 @@ def g05_pareto(bench, gmu, sweep):
                     fontsize=8, color=INK, fontweight="bold", va="center")
     refs = [c for c in REFS if c in bench]
     ax.scatter([bench[c]["luts"] for c in refs], [bench[c]["thr_pt_long"] for c in refs], s=38, color=C1,
-               edgecolor=SURF, linewidth=1, label="core_v2 at R = 1, 5, 8, 16", zorder=4)
+               edgecolor=SURF, linewidth=1, label="base_rN (R = 1, 5, 8, 16)", zorder=4)
     for c in refs:
         ax.annotate(f"R={c.split('_r')[1]}", (bench[c]["luts"], bench[c]["thr_pt_long"]), xytext=(6, -6),
                     textcoords="offset points", fontsize=7.5, color=INK2)
@@ -419,23 +421,23 @@ def g05_pareto(bench, gmu, sweep):
     ax.plot(px, py, color=C2, lw=1.2, zorder=4)
     ax.scatter(px, py, marker="D", s=44, color=C2, edgecolor=SURF, linewidth=1, label="optimization path", zorder=5)
     for (c, s, _), x, y in zip(st, px, py):
-        if c in ("v2_r4_optBCDE", "v2_r4_optBCDEFGHI"):
+        if c in ("brody/r4_BtoE", "brody/r4_BtoI"):
             continue                 # same place as +F / +J: labeled together
-        off = {"v2": (8, -11), "v2_r4": (-6, -11), "v2_r4_optBCDEFGH": (-10, -7), FINAL: (-10, 8),
-               "v2_r4_optBCDEFG": (7, -2)}
+        off = {"brody/base": (8, -11), "brody/base_r4": (-6, -11), "brody/r4_BtoH": (-10, -7), FINAL: (-10, 8),
+               "brody/r4_BtoG": (7, -2)}
         dx, dy = off.get(c, (7, -4))
-        txt = {"v2": "core_v2", "v2_r4_optBCDEF": "+E, +F", FINAL: "+I, +J"}.get(c, s)
+        txt = {"brody/base": "base", "brody/r4_BtoF": "+E, +F", FINAL: "+I, +J"}.get(c, s)
         ax.annotate(txt, (x, y), xytext=(dx, dy), textcoords="offset points",
                     fontsize=8, color=INK, fontweight="bold", ha="right" if dx < 0 else "left")
     if R2 in bench:
         ax.scatter(bench[R2]["luts"], bench[R2]["thr_pt_long"], marker="D", s=44, facecolor=SURF, edgecolor=C2,
                    linewidth=1.5, label="+L at 2 rounds per stage (J + K, L)", zorder=5)
     logan_points(ax, bench, "luts", "thr_pt_long",
-                 {"v2_logan_r4": (7, -10, "left"), "v2_logan_pipe16x1d16": (7, -7, "left"),
-                  "v2_logan_pipe10x2d8": (7, -4, "left"), "v2_logan_pipe20x2d16": (22, -9, "left", True)})
+                 {"logan/r4": (7, -10, "left"), "logan/pipe16x1d16": (7, -7, "left"),
+                  "logan/pipe10x2d8": (7, -4, "left"), "logan/pipe20x2d16": (22, -9, "left", True)})
     logan_opt_points(ax, bench, "luts", "thr_pt_long",
-                     {"v2_logan_pipe20x2d16_optI": (8, -7, "left"), "v2_logan_pipe20x2d16_optIL": (8, 6, "left"),
-                      "v2_logan_pipe16x2d16_optIL": (-8, 3, "right"), "v2_logan_pipe10x2d8_optIL": (7, 2, "left")})
+                     {"merged/pipe20x2d16_I": (8, -7, "left"), "merged/pipe20x2d16_IL": (8, 6, "left"),
+                      "merged/pipe16x2d16_ILN": (-8, 3, "right"), "merged/pipe10x2d8_IL": (7, 2, "left")})
     ax.set_xlim(500, 12000)
     ax.set_ylim(100, 12000)
     ticks = [500, 1000, 2000, 5000, 10000]
@@ -490,15 +492,15 @@ def g15_thr_luts(bench, gmu):
     ax.plot(px, py, color=C2, lw=1.2, zorder=4)
     ax.scatter(px, py, marker="D", s=44, color=C2, edgecolor=SURF, linewidth=1, label="our optimization path",
                zorder=5)
-    off = {"v2": (8, -9, "left"), "v2_r4": (-8, 0, "right"), "v2_r4_optB": (-3, 9, "right"),
-           "v2_r4_optBC": (8, -3, "left"), "v2_r4_optBCD": (8, -4, "left"), "v2_r4_optBCDEF": (8, -6, "left"),
-           "v2_r4_optBCDEFG": (-2, -15, "center"), "v2_r4_optBCDEFGH": (-9, -5, "right"),
+    off = {"brody/base": (8, -9, "left"), "brody/base_r4": (-8, 0, "right"), "brody/r4_B": (-3, 9, "right"),
+           "brody/r4_BtoC": (8, -3, "left"), "brody/r4_BtoD": (8, -4, "left"), "brody/r4_BtoF": (8, -6, "left"),
+           "brody/r4_BtoG": (-2, -15, "center"), "brody/r4_BtoH": (-9, -5, "right"),
            FINAL: (-9, 6, "right")}
     for (c, s, m), x, y in zip(st, px, py):
-        if c in ("v2_r4_optBCDE", "v2_r4_optBCDEFGHI"):
+        if c in ("brody/r4_BtoE", "brody/r4_BtoI"):
             continue                 # same place as +F / +J: labeled together
         dx, dy, ha = off.get(c, (8, -4, "left"))
-        txt = {"v2": "core_v2 (R=10)", "v2_r4": "r4", "v2_r4_optBCDEF": "+E, +F"}.get(c, s)
+        txt = {"brody/base": "base (R=10)", "brody/base_r4": "base_r4", "brody/r4_BtoF": "+E, +F"}.get(c, s)
         if c == FINAL:
             txt = f"+I, +J  {y:,.0f} Mbps, {x:,.0f} LUT, {1000 * y / x:,.0f} Kbps/LUT"
         ax.annotate(txt, (x, y), xytext=(dx, dy), textcoords="offset points", fontsize=8, color=INK,
@@ -507,13 +509,13 @@ def g15_thr_luts(bench, gmu):
         ax.scatter(bench[R2]["luts"], bench[R2]["thr_pt_long"], marker="D", s=44, facecolor=SURF, edgecolor=C2,
                    linewidth=1.5, label="+L at 2 rounds per stage (J + K, L)", zorder=5)
     logan_points(ax, bench, "luts", "thr_pt_long",
-                 {"v2_logan_r4": (4, -16, "right", True), "v2_logan_pipe16x1d16": (8, -2, "left"),
-                  "v2_logan_pipe10x2d8": (8, -2, "left"), "v2_logan_pipe20x2d16": (8, -4, "left")})
+                 {"logan/r4": (4, -16, "right", True), "logan/pipe16x1d16": (8, -2, "left"),
+                  "logan/pipe10x2d8": (8, -2, "left"), "logan/pipe20x2d16": (8, -4, "left")})
     logan_opt_points(ax, bench, "luts", "thr_pt_long",
-                     {"v2_logan_pipe20x2d16_optI": (8, -4, "left"), "v2_logan_pipe20x2d16_optIL": (8, 4, "left"),
-                      "v2_logan_pipe16x2d16_optIL": (-10, 1, "right"), "v2_logan_pipe10x2d8_optIL": (8, 0, "left")},
+                     {"merged/pipe20x2d16_I": (8, -4, "left"), "merged/pipe20x2d16_IL": (8, 4, "left"),
+                      "merged/pipe16x2d16_ILN": (-10, 1, "right"), "merged/pipe10x2d8_IL": (8, 0, "left")},
                      fmt=lambda c, s, x, y: (f"{s}  {y:,.0f} Mbps, {x:,.0f} LUT, {1000 * y / x:,.0f} Kbps/LUT"
-                                             if c == "v2_logan_pipe16x2d16_optIL" else s))
+                                             if c == "merged/pipe16x2d16_ILN" else s))
     ax.set_xlim(0, X1)
     ax.set_ylim(0, Y1)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
@@ -529,7 +531,7 @@ def g15_thr_luts(bench, gmu):
 
 def g06_msgsize(bench, gmu):
     sizes = [("thr_pt_16", "16 B"), ("thr_pt_64", "64 B"), ("thr_pt_1536", "1536 B"), ("thr_pt_long", "long")]
-    ours = [(c, col) for c, col in (("v2", C1), ("v2_r4_optBCDEF", C2), (FINAL, C3), (R2, C4))
+    ours = [(c, col) for c, col in (("brody/base", C1), ("brody/r4_BtoF", C2), (FINAL, C3), (R2, C4))
             if c in bench]
     fig, ax = plt.subplots(figsize=(9, 5.6))
     ax.set_yscale("log")
@@ -572,23 +574,23 @@ def g16_logan_msgsize(bench):
     """Our two fastest cores against Logan's two fastest, PT throughput by message size. Owner = hue
     (ours orange, Logan aqua), configuration = line style and marker fill; every line directly labeled."""
     sizes = [("thr_pt_16", "16 B"), ("thr_pt_64", "64 B"), ("thr_pt_1536", "1536 B"), ("thr_pt_long", "long")]
-    series = [(FINAL, "optBCDEFGHIJ (ours)", C2, "D", "-", True),
-              (R2, "optBCDEFGHIJKL, 2 rounds/stage (ours)", C2, "D", (0, (4, 3)), False),
-              ("v2_logan_pipe20x2d16", "Logan 20×2 ring", CL, "s", "-", True),
-              ("v2_logan_pipe16x2d16_optIL", "Logan ring, 16×2 with 2 entry points + our I, L", CL, "s", (0, (4, 3)),
+    series = [(FINAL, "r4_BtoJ (ours)", C2, "D", "-", True),
+              (R2, "r2_BtoL (ours)", C2, "D", (0, (4, 3)), False),
+              ("logan/pipe20x2d16", "Logan 20×2 ring", CL, "s", "-", True),
+              ("merged/pipe16x2d16_ILN", "Logan ring, 16×2 with 2 entry points + our I, L", CL, "s", (0, (4, 3)),
                False)]
     series = [s for s in series if s[0] in bench]
-    if not any(c.startswith("v2_logan") for c, *_ in series):
+    if not any(c.startswith(("logan/", "merged/")) for c, *_ in series):
         return
     import math
     fig, ax = plt.subplots(figsize=(9, 5.6))
     ax.set_yscale("log")
     x = list(range(len(sizes)))
     ends, starts = [], []
-    if "v2" in bench:
-        ys = [bench["v2"][k] for k, _ in sizes]
-        ax.plot(x, ys, color=INK2, lw=1.4, ls=(0, (2, 2)), marker="o", ms=5, zorder=2, label="core_v2 baseline")
-        ends.append((ys[-1], "core_v2 baseline", INK2))
+    if "brody/base" in bench:
+        ys = [bench["brody/base"][k] for k, _ in sizes]
+        ax.plot(x, ys, color=INK2, lw=1.4, ls=(0, (2, 2)), marker="o", ms=5, zorder=2, label="base (baseline)")
+        ends.append((ys[-1], "base (baseline)", INK2))
     for c, name, col, mk, ls, filled in series:
         ys = [bench[c][k] for k, _ in sizes]
         ax.plot(x, ys, color=col, lw=2, ls=ls, marker=mk, ms=7, mfc=col if filled else SURF, mec=col if not filled
@@ -648,7 +650,7 @@ def g07_ranked(bench, gmu):
     ax.set_xlabel("long-message PT throughput / area (Kbit/s per LUT)")
     ax.set_title("Throughput per LUT: our cores and Logan's among GMU's LWC finalist benchmark")
     ax.legend(handles=patches([("GMU benchmark (ePrint 2023/484 Table 14)", CONTEXT), ("our cores", C1),
-                               ("optBCDEFGHIJ (final)", C2)] + ([("Logan's cores", CL)] if logan_in(bench) else [])),
+                               ("r4_BtoJ (final)", C2)] + ([("Logan's cores", CL)] if logan_in(bench) else [])),
               loc="lower right", fontsize=8)
     save(fig, "07_efficiency_ranked.png")
 
@@ -659,10 +661,10 @@ def g09_breakdown(bench, prof):
     if R2 in prof:
         st.append((R2, "+L", "at 2 rounds/stage"))
     st += [(c, s, m) for c, s, m in LOGAN if c in prof]
-    if "v2_logan_pipe20x2d16_optIL" in prof:
-        st.append(("v2_logan_pipe20x2d16_optIL", "Logan 20×2", "+ our I, L"))
-    if "v2_logan_pipe16x2d16_optIL" in prof:
-        st.append(("v2_logan_pipe16x2d16_optIL", "Logan 16×2,", "2 entry points + I, L"))
+    if "merged/pipe20x2d16_IL" in prof:
+        st.append(("merged/pipe20x2d16_IL", "Logan 20×2", "+ our I, L"))
+    if "merged/pipe16x2d16_ILN" in prof:
+        st.append(("merged/pipe16x2d16_ILN", "Logan 16×2,", "2 entry points + I, L"))
     segs = [("busy_io_pct", "permutation and I/O overlap", C1, "#ffffff"),
             ("busy_pct", "permutation only", LIGHTBLUE, INK),
             ("io_pct", "I/O only", C2, "#ffffff"),
@@ -678,7 +680,7 @@ def g09_breakdown(bench, prof):
             left += v
         ax.text(101.5, i, f"{int(prof[c]['window_cycles']):,} cycles", va="center", fontsize=7.5, color=INK2)
     ax.set_yticks(range(len(st)))
-    ax.set_yticklabels([f"{s} {m.replace(chr(10), ' ')}".strip() if c != "v2" else "core_v2" for c, s, m in st],
+    ax.set_yticklabels([f"{s} {m.replace(chr(10), ' ')}".strip() if c != "brody/base" else "base" for c, s, m in st],
                        fontsize=8)
     ax.invert_yaxis()
     ax.set_xlim(0, 100)
@@ -696,7 +698,7 @@ def g09_breakdown(bench, prof):
 
 
 def g10_area():
-    cores = [c for c in ("v2_r4_optBCDEFG", "v2_r4_optBCDEFGH", FINAL, R2)]
+    cores = [c for c in ("brody/r4_BtoG", "brody/r4_BtoH", FINAL, R2)]
     data = {c: util_hier(c) for c in cores}
     data = {c: d for c, d in data.items() if d}
     if not data:
@@ -705,7 +707,7 @@ def g10_area():
              ("lfsr", "mask LFSRs", C3), ("control", "control (issue engine, loader)", C4),
              ("wrapper", "LWC wrapper", CONTEXT)]
     fig, axs = plt.subplots(1, 2, figsize=(10, 5.2), gridspec_kw=dict(wspace=0.32))
-    short = {"v2_r4_optBCDEFG": "+G", "v2_r4_optBCDEFGH": "+H", FINAL: "+J", R2: "+L\n2 rounds/stage"}
+    short = {"brody/r4_BtoG": "+G", "brody/r4_BtoH": "+H", FINAL: "+J", R2: "+L\n2 rounds/stage"}
     labels = [short.get(c, nice(c)) for c in data]
     for ax, unit, title in ((axs[0], "lut", "LUT sites"), (axs[1], "ff", "flip-flops")):
         for i, (c, d) in enumerate(data.items()):
@@ -741,19 +743,19 @@ def g11_fmax_rps(bench, gmu, sweep):
     ax.set_xscale("log", base=2)
     if sweep:
         ax.scatter([p["rps"] for p in sweep], [p["fmax_mhz"] for p in sweep], s=16, color=GRID, edgecolor=AXIS,
-                   linewidth=0.6, label="sweep points (core_v2_gen)", zorder=2)
+                   linewidth=0.6, label="sweep points (brody/gen)", zorder=2)
         best = {}
         for p in sweep:
             best[p["rps"]] = max(best.get(p["rps"], 0), p["fmax_mhz"])
         ks = sorted(best)
         ax.plot(ks, [best[k] for k in ks], color=MUTED, lw=1.2, zorder=2, label="best sweep Fmax at that rps")
-    refs = [c for c in ["v2"] + REFS + ["v2_r4"] if c in bench]
+    refs = [c for c in ["brody/base"] + REFS + ["brody/base_r4"] if c in bench]
     ax.scatter([bench[c]["rounds"] for c in refs], [bench[c]["fmax_mhz"] for c in refs], s=40, color=C1,
-               edgecolor=SURF, linewidth=1, label="core_v2 at R rounds per cycle", zorder=4)
+               edgecolor=SURF, linewidth=1, label="base_rN (R rounds per cycle)", zorder=4)
     for c in refs:
         ax.annotate(f"R={int(bench[c]['rounds'])}", (bench[c]["rounds"], bench[c]["fmax_mhz"]), xytext=(6, -3),
                     textcoords="offset points", fontsize=7.5, color=INK2)
-    opt = [c for c, _, _ in steps_in(bench) if c not in ("v2", "v2_r4")] + [c for c in (R2H, R2) if c in bench]
+    opt = [c for c, _, _ in steps_in(bench) if c not in ("brody/base", "brody/base_r4")] + [c for c in (R2H, R2) if c in bench]
     grp = {}
     for c in opt:                    # spread the cores that share a rounds-per-stage value
         grp.setdefault(bench[c]["rounds"], []).append(c)
@@ -762,11 +764,11 @@ def g11_fmax_rps(bench, gmu, sweep):
         jit = 2 ** ((g.index(c) - (len(g) - 1) / 2) * 0.03)
         ax.scatter(bench[c]["rounds"] * jit, bench[c]["fmax_mhz"], marker="D", s=40, color=C2, edgecolor=SURF,
                    linewidth=1, zorder=5)
-        names = {"v2_r4_optBCDEFGH": "+H", FINAL: "+I, +J", R2H: "+H (2 rounds/stage)", R2: "+L (2 rounds/stage)",
-                 "v2_r4_optBCD": "+D"}
+        names = {"brody/r4_BtoH": "+H", FINAL: "+I, +J", R2H: "+H (2 rounds/stage)", R2: "+L (2 rounds/stage)",
+                 "brody/r4_BtoD": "+D"}
         if c in names:
             name = names[c]
-            right = c in ("v2_r4_optBCDEFGH", FINAL)
+            right = c in ("brody/r4_BtoH", FINAL)
             ax.annotate(name, (bench[c]["rounds"] * jit, bench[c]["fmax_mhz"]),
                         xytext=(7 if right else -7, -12 if c == R2 else 0),
                         textcoords="offset points", fontsize=8, color=INK, fontweight="bold",
@@ -778,8 +780,8 @@ def g11_fmax_rps(bench, gmu, sweep):
         ys = [bench[c]["fmax_mhz"] for c, _, _ in lg]
         ax.scatter(xs, ys, marker="s", s=44, color=CL, edgecolor=SURF, linewidth=1, zorder=6,
                    label="Logan's cores (rounds per ring stage, or R)")
-        lab = {"v2_logan_pipe10x2d8": ("Logan 10×2", (7, -6)), "v2_logan_pipe20x2d16": ("Logan 20×2", (7, 6)),
-               "v2_logan_pipe16x1d16": ("Logan 16×1", (7, 0)), "v2_logan_r4": ("Logan R=4", (7, 0))}
+        lab = {"logan/pipe10x2d8": ("Logan 10×2", (7, -6)), "logan/pipe20x2d16": ("Logan 20×2", (7, 6)),
+               "logan/pipe16x1d16": ("Logan 16×1", (7, 0)), "logan/r4": ("Logan R=4", (7, 0))}
         for (c, _, _), x, y in zip(lg, xs, ys):
             name, (dx, dy) = lab.get(c, (c, (7, 0)))
             ax.annotate(name, (x, y), xytext=(dx, dy), textcoords="offset points", fontsize=8, color=INK,
@@ -903,7 +905,7 @@ def read_vcd_vec(path, wanted):
 
 
 def g13_timeline():
-    core = "v2_r4_optBCDEFGH"
+    core = "brody/r4_BtoH"
     base = ROOT / "build" / "sim" / "questa" / core
     need = "b_kind"
     vcds = {wl: base / f"prof_{wl}" / "prof.vcd" for wl in ("short", "long")}
@@ -971,7 +973,7 @@ def g13_timeline():
         ax.set_xlabel("clock cycle")
     axs[0].legend(handles=patches([(nm, c) for _, nm, c in KINDS]), loc="lower center", bbox_to_anchor=(0.5, 1.13),
                   ncol=5, fontsize=8)
-    fig.suptitle("optBCDEFGH: every permutation call, by kind", x=0.06, y=0.995, ha="left", fontweight="bold",
+    fig.suptitle("r4_BtoH: every permutation call, by kind", x=0.06, y=0.995, ha="left", fontweight="bold",
                  fontsize=12, color=INK)
     footer(fig, "Each bar is one call: 20 cycles × 4 rounds, moving one stage per cycle around its ring, so a ring "
                 "holds 4 calls ('slots'). One call can start per cycle. From Questa VCDs of make profile with "
@@ -981,7 +983,7 @@ def g13_timeline():
 
 def g14_noise():
     runs = read_csv(REP / "synth_runs.csv")
-    sets = [("v2_r4_optBCDEFG", "optBCDEFG", ""), ("v2_r4_optBCDEFGH", "optBCDEFGH", H_NOISE_SINCE)]
+    sets = [("brody/r4_BtoG", "r4_BtoG", ""), ("brody/r4_BtoH", "r4_BtoH", H_NOISE_SINCE)]
     fig, axs = plt.subplots(1, 2, figsize=(10, 4.4), sharey=True, gridspec_kw=dict(wspace=0.08))
     for ax, (core, name, since) in zip(axs, sets):
         rs = [r for r in runs if r["core"] == core and r["date"] >= since]
@@ -1024,8 +1026,8 @@ def g14_noise():
 # ---------------------------------------------------------------------------------------------- main
 def main():
     bench = load_bench()
-    if "v2" not in bench:
-        sys.exit("reports/benchmark.csv has no core_v2 row: run `make report` first")
+    if "brody/base" not in bench:
+        sys.exit("reports/benchmark.csv has no brody/base row: run `make report` first")
     gmu = load_gmu()
     prof = load_profile()
     try:

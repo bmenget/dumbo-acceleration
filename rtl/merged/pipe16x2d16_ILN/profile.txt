@@ -1,0 +1,20 @@
+# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
+# Dual-entry ring (README.md): this directory's spongent_perm_pipe.sv exposes each stage's valid bit as a scalar
+# g_stage[s].busy, because the profile's single-point `ring` reconstruction does not hold with two points.
+# Not yet checked in a profile run (the VCD scope names of generate blocks are assumed).
+st0   u_core/u_ring/g_stage[0]/busy
+st1   u_core/u_ring/g_stage[1]/busy
+st2   u_core/u_ring/g_stage[2]/busy
+st3   u_core/u_ring/g_stage[3]/busy
+st4   u_core/u_ring/g_stage[4]/busy
+st5   u_core/u_ring/g_stage[5]/busy
+st6   u_core/u_ring/g_stage[6]/busy
+st7   u_core/u_ring/g_stage[7]/busy
+st8   u_core/u_ring/g_stage[8]/busy
+st9   u_core/u_ring/g_stage[9]/busy
+st10  u_core/u_ring/g_stage[10]/busy
+st11  u_core/u_ring/g_stage[11]/busy
+st12  u_core/u_ring/g_stage[12]/busy
+st13  u_core/u_ring/g_stage[13]/busy
+st14  u_core/u_ring/g_stage[14]/busy
+st15  u_core/u_ring/g_stage[15]/busy

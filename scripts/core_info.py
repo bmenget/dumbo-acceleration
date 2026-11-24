@@ -10,15 +10,15 @@ _GEN = re.compile(r"constant\s+G_(R|S|U)\s*:\s*integer\s*:=\s*(\d+)\s*;", re.I)
 
 
 def _gen(core):
-    """{'R','S','U'} for the parameterized core (rtl/core_v2_gen), else None."""
-    f = ROOT / "rtl" / f"core_{core}" / "elephant_constants.vhd"
+    """{'R','S','U'} for the parameterized core (rtl/brody/gen), else None."""
+    f = ROOT / "rtl" / core / "elephant_constants.vhd"
     m = dict((k.upper(), int(v)) for k, v in _GEN.findall(f.read_text())) if f.exists() else {}
     return m if len(m) == 3 else None
 
 
 def defines(core):
-    """Verilog defines {NAME: int} from rtl/core_<core>/defines.txt (Logan's cores, rtl/logan/), else {}."""
-    f = ROOT / "rtl" / f"core_{core}" / "defines.txt"
+    """Verilog defines {NAME: int} from rtl/<core>/defines.txt (Logan's cores, rtl/logan/src/), else {}."""
+    f = ROOT / "rtl" / core / "defines.txt"
     out = {}
     if f.exists():
         for line in f.read_text().splitlines():
@@ -30,7 +30,7 @@ def defines(core):
 
 
 def rounds(core):
-    """(rounds per cycle, cycles per permutation) from rtl/core_<core>/elephant_constants.vhd.
+    """(rounds per cycle, cycles per permutation) from rtl/<core>/elephant_constants.vhd.
 
     For the parameterized core (G_R, G_S, G_U) "rounds per cycle" is the rounds per pipeline stage, R/S.
     Returns ("", "") when the core has no single PERM_ROUNDS_PER_CYCLE (e.g. an optimized core with
@@ -45,7 +45,7 @@ def rounds(core):
         return d["DUMBO_R"], 80 // d["DUMBO_R"]
     if "DUMBO_K" in d:                       # Logan's ring: K rounds per stage
         return d["DUMBO_K"], 80 // d["DUMBO_K"]
-    f = ROOT / "rtl" / f"core_{core}" / "elephant_constants.vhd"
+    f = ROOT / "rtl" / core / "elephant_constants.vhd"
     m = _ROUNDS.findall(f.read_text()) if f.exists() else []
     if len(m) != 1:
         return "", ""
@@ -61,8 +61,8 @@ def slots(core):
     d = defines(core)
     if "DUMBO_S" in d:                       # Logan's ring: S stages, one call each
         return d["DUMBO_S"]
-    return {"v2_r4_optBC": 2, "v2_r4_optBCD": 4, "v2_r4_optBCDE": 4, "v2_r4_optBCDEF": 4,
-            "v2_r4_optBCDEFG": 8, "v2_r4_optBCDEFGH": 8, "v2_r4_optBCDEFGHI": 8, "v2_r4_optBCDEFGHIJ": 8,
-            "v2_r2_optBCDEFGH": 16, "v2_r2_optBCDEFGHI": 16, "v2_r2_optBCDEFGHIJ": 16,
-            "v2_r2_optBCDEFGHIJK": 16, "v2_r2_optBCDEFGHIJKL": 16,
-            "v2_r2_optBCDEFGHIJKLM": 16}.get(core, 1)
+    return {"brody/r4_BtoC": 2, "brody/r4_BtoD": 4, "brody/r4_BtoE": 4, "brody/r4_BtoF": 4,
+            "brody/r4_BtoG": 8, "brody/r4_BtoH": 8, "brody/r4_BtoI": 8, "brody/r4_BtoJ": 8,
+            "brody/r2_BtoH": 16, "attic/brody/r2_BtoI": 16, "attic/brody/r2_BtoJ": 16,
+            "attic/brody/r2_BtoK": 16, "brody/r2_BtoL": 16,
+            "merged/r2_BtoM": 16}.get(core, 1)

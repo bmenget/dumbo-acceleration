@@ -1,43 +1,45 @@
-# Speeding up core_v2: options and where they land in the RTL
+# Speeding up brody/base: options and where they land in the RTL
 
-This is a plan for the optimized cores (`rtl/core_v2_opt*`). It covers ten ways to make Dumbo v2 faster (and smaller),
-which files each one changes, and how. Line references are to `core_v2` as of 2026-11-19.
+This is a plan for the optimized cores (`rtl/brody/`, `rtl/merged/`; naming in [README.md](README.md)). It covers the
+options A–N for making Dumbo v2 faster (and smaller), which files each one changes, and how. Sections 3–12 cover
+A–J; K–N are summarized in the tables below and described in their cores' `README.md`. Line references are to `brody/base` as of 2026-11-19.
 Background on the algorithm is in [../DUMBO_V2.md](../DUMBO_V2.md). The v1→v2 port is described in
-[core_v2/V2_PORT.md](core_v2/V2_PORT.md).
+[brody/base/README.md](brody/base/README.md).
 
-**Status (2026-11-22)**
+**Status (2026-11-23)**
 
 | Option | State |
 |---|---|
-| A | Swept: `core_v2_r1`, `r4`, `r5`, `r8`, `r16` (see `reports/benchmark.csv`) |
-| B | **Done:** [core_v2_r4_optB/](core_v2_r4_optB/OPT_B.md), on top of `core_v2_r4`. Section 4 describes how it was built. |
-| C | **Done together with B:** [core_v2_r4_optBC/](core_v2_r4_optBC/OPT_BC.md). It pairs MAC(k) with KS(k+2), not KS(k+1) as section 5 suggests, so B's overlap survives (needs a 4th mask, +8 LFSR FF). AD blocks also run in pairs. 21.74 cycles per PT block, 169.5 MHz, 2736 LUT. |
-| D | **Done on top of B + C:** [core_v2_r4_optBCD/](core_v2_r4_optBCD/OPT_BCD.md). Two 4-round stages per unit, 4 calls in flight. That's logically equal to 4 R=4 units; splitting R=4 into 2 + 2 would not have reduced cycles. 10.87 cycles per PT block, 147.8 MHz, 4732 LUT, 2175 Mbps, 460 Kbps/LUT (flat vs optBC). |
-| E | **Done on top of B + C + D:** [core_v2_r4_optBCDE/](core_v2_r4_optBCDE/OPT_BCDE.md). Same 2 units × 2 stages × 4 rounds, but staggered calls: each stage register carries its own call and round counter, one call starts per cycle as soon as its input is ready, keystream runs up to 3 blocks ahead. 9.88 cycles per PT block (slot-bound), 6.02 per AD block, 163.8 MHz, 5639 LUT, 2652 Mbps, 470 Kbps/LUT. |
-| F | **Done on top of E:** [core_v2_r4_optBCDEF/](core_v2_r4_optBCDEF/OPT_BCDEF.md). Fast loader: a block completes in its last word's cycle. AD at the bus limit (5.01 cycles per block, 5182 Mbps); PT unchanged; 162.4 MHz, 5631 LUT. |
-| G | **Done on top of F:** [core_v2_r4_optBCDEFG/](core_v2_r4_optBCDEFG/OPT_BCDEFG.md). Generic NUNIT × NSTAGE rings, built as 4 × 2 × 4 rounds (8 calls in flight), keystream FIFO 6 deep, and optBCDEF's three tied paths shortened (issue two cycles ahead through a registered x, registered round constants, keystream head shifted per word). PT at the bus limit too (4.93 cycles per block); 161.2 MHz, 7295 LUT, 5219 Mbps long PT, 715 Kbps/LUT. |
-| H | **Done on top of G:** [core_v2_r4_optBCDEFGH/](core_v2_r4_optBCDEFGH/OPT_BCDEFGH.md). Same cycles as G with less area: new calls go into stage 0 only (2 rings × 4 stages), so stages 1.. have no load mux, the result mux is 2:1 and a 20-deep SRL delay line replaces the mask store. 174.6 MHz, 5496 LUT (−25%), 5653 Mbps long PT, 1029 Kbps/LUT. The same RTL at 2 rounds per stage, [core_v2_r2_optBCDEFGH/](core_v2_r2_optBCDEFGH/OPT_BCDEFGH_R2.md), is worse on every metric (171.4 MHz, 5786 LUT, 16 B in 150 cycles): the wrapper handshake sets the clock in both. |
-| I | **Done on top of H:** [core_v2_r4_optBCDEFGHI/](core_v2_r4_optBCDEFGHI/OPT_BCDEFGHI.md). Register slices (2-entry skid buffers) on `bdi` and `bdo`, and the keystream head's next value selected by the word accept in one last mux. The wrapper → loader path is gone; the rounds set the clock. 182.5 MHz, 5467 LUT, 5909 Mbps long PT, 1081 Kbps/LUT, +1–2 cycles per message (16 B in 92). At 2 rounds per stage, [core_v2_r2_optBCDEFGHI/](core_v2_r2_optBCDEFGHI/OPT_BCDEFGHI_R2.md) now pays off: 201.4 MHz, 6521 Mbps long PT, 1114 Kbps/LUT, at the wrapper's own clock limit, but 16 B in 152 cycles. |
-| J | **Done on top of I:** [core_v2_r4_optBCDEFGHIJ/](core_v2_r4_optBCDEFGHIJ/OPT_BCDEFGHIJ.md). Area only: each new call's mask is A ⊕ B with A ∈ {0, φ^k, keystream φ^k, L} and B ∈ {0, φ^(k+2), φ^(k+1)}, and the source, A and B are 4:1 muxes on registered 2-bit selects instead of a decode of the call's kind. Source / mask logic 802 → 640 LUT cells; 182.4 MHz, 5396 LUT (−1.3%), 1094 Kbps/LUT. Same cycles. At 2 rounds per stage, [core_v2_r2_optBCDEFGHIJ/](core_v2_r2_optBCDEFGHIJ/OPT_BCDEFGHIJ_R2.md): 197.6 MHz, 5767 LUT (−85), 1109 Kbps/LUT, a tie with r2 I within Vivado noise. |
-| K | **Done on top of r2 J:** [core_v2_r2_optBCDEFGHIJK/](core_v2_r2_optBCDEFGHIJK/OPT_BCDEFGHIJK.md). Timing only: r2 J's critical path ran wrapper → core → wrapper (PreProcessor → tag compare → `msg_auth` → PostProcessor, 12 levels), not through the wrapper alone. The tag check now only updates `tag_verified`, a new `AUTH` state shows `msg_auth` from registers, and `key_ready` no longer waits for `key_valid`. 204.2 MHz (+3.3%), 5762 LUT, 6611 Mbps long PT, 1147 Kbps/LUT; +1 cycle per decryption, encryption unchanged. Next limit: `ih_v` / `ih` → input buffers. Idea from Logan's cores (`rtl/logan/`). |
-| L | **Done on top of K:** [core_v2_r2_optBCDEFGHIJKL/](core_v2_r2_optBCDEFGHIJKL/OPT_BCDEFGHIJKL.md). Timing only: `saving_bdo` (store ciphertext or word into the input buffer) is decoded from registers instead of set by the loader's accept, so the accept (`ih_v`, `ks_cnt`, …) reaches only the buffers' write enable, not their data mux. 208.0 MHz, 5742 LUT, 6734 Mbps long PT, 1173 Kbps/LUT; same cycles as K. Remaining limits near 220 MHz: input-side, routing-bound paths (wrapper → `wait_cnt`, `ih → ib`, `ih → kh`). |
-| M | **Tried on top of L, not adopted:** [core_v2_r2_optBCDEFGHIJKLM/](core_v2_r2_optBCDEFGHIJKLM/OPT_BCDEFGHIJKLM.md). No mask delay line (Logan's idea): AD / MAC masks summed into `macc` at load and fed to FIN, keystream masks rebuilt at the output by a second KS window. Correct (all sets pass, same cycles), but 5725 LUT (−17) and +333 FF: the new 6-input result mux and second window cost about what the 320 SRLs did. 200.8 MHz (new path `ks_st` → both windows). L stays the r2 core. |
-| Sweep | [core_v2_gen/](core_v2_gen/GEN.md) generalizes B + C + D with R (rounds per unit), S (pipeline stages, a pure register knob), U (units) and a fast loader; `scripts/sweep.py` explores the grid. Built and elaborated; not yet simulated. |
+| A | Swept: `brody/base_r1`, `r4`, `r5`, `r8`, `r16` (see `reports/benchmark.csv`) |
+| B | **Done:** [brody/r4_B/](brody/r4_B/README.md), on top of `brody/base_r4`. Section 4 describes how it was built. |
+| C | **Done together with B:** [brody/r4_BtoC/](brody/r4_BtoC/README.md). It pairs MAC(k) with KS(k+2), not KS(k+1) as section 5 suggests, so B's overlap survives (needs a 4th mask, +8 LFSR FF). AD blocks also run in pairs. 21.74 cycles per PT block, 169.5 MHz, 2736 LUT. |
+| D | **Done on top of B + C:** [brody/r4_BtoD/](brody/r4_BtoD/README.md). Two 4-round stages per unit, 4 calls in flight. That's logically equal to 4 R=4 units; splitting R=4 into 2 + 2 would not have reduced cycles. 10.87 cycles per PT block, 147.8 MHz, 4732 LUT, 2175 Mbps, 460 Kbps/LUT (flat vs r4_BtoC). |
+| E | **Done on top of B + C + D:** [brody/r4_BtoE/](brody/r4_BtoE/README.md). Same 2 units × 2 stages × 4 rounds, but staggered calls: each stage register carries its own call and round counter, one call starts per cycle as soon as its input is ready, keystream runs up to 3 blocks ahead. 9.88 cycles per PT block (slot-bound), 6.02 per AD block, 163.8 MHz, 5639 LUT, 2652 Mbps, 470 Kbps/LUT. |
+| F | **Done on top of E:** [brody/r4_BtoF/](brody/r4_BtoF/README.md). Fast loader: a block completes in its last word's cycle. AD at the bus limit (5.01 cycles per block, 5182 Mbps); PT unchanged; 162.4 MHz, 5631 LUT. |
+| G | **Done on top of F:** [brody/r4_BtoG/](brody/r4_BtoG/README.md). Generic NUNIT × NSTAGE rings, built as 4 × 2 × 4 rounds (8 calls in flight), keystream FIFO 6 deep, and r4_BtoF's three tied paths shortened (issue two cycles ahead through a registered x, registered round constants, keystream head shifted per word). PT at the bus limit too (4.93 cycles per block); 161.2 MHz, 7295 LUT, 5219 Mbps long PT, 715 Kbps/LUT. |
+| H | **Done on top of G:** [brody/r4_BtoH/](brody/r4_BtoH/README.md). Same cycles as G with less area: new calls go into stage 0 only (2 rings × 4 stages), so stages 1.. have no load mux, the result mux is 2:1 and a 20-deep SRL delay line replaces the mask store. 174.6 MHz, 5496 LUT (−25%), 5653 Mbps long PT, 1029 Kbps/LUT. The same RTL at 2 rounds per stage, [brody/r2_BtoH/](brody/r2_BtoH/README.md), is worse on every metric (171.4 MHz, 5786 LUT, 16 B in 150 cycles): the wrapper handshake sets the clock in both. |
+| I | **Done on top of H:** [brody/r4_BtoI/](brody/r4_BtoI/README.md). Register slices (2-entry skid buffers) on `bdi` and `bdo`, and the keystream head's next value selected by the word accept in one last mux. The wrapper → loader path is gone; the rounds set the clock. 182.5 MHz, 5467 LUT, 5909 Mbps long PT, 1081 Kbps/LUT, +1–2 cycles per message (16 B in 92). At 2 rounds per stage, [attic/brody/r2_BtoI/](attic/brody/r2_BtoI/README.md) now pays off: 201.4 MHz, 6521 Mbps long PT, 1114 Kbps/LUT, at the wrapper's own clock limit, but 16 B in 152 cycles. |
+| J | **Done on top of I:** [brody/r4_BtoJ/](brody/r4_BtoJ/README.md). Area only: each new call's mask is A ⊕ B with A ∈ {0, φ^k, keystream φ^k, L} and B ∈ {0, φ^(k+2), φ^(k+1)}, and the source, A and B are 4:1 muxes on registered 2-bit selects instead of a decode of the call's kind. Source / mask logic 802 → 640 LUT cells; 182.4 MHz, 5396 LUT (−1.3%), 1094 Kbps/LUT. Same cycles. At 2 rounds per stage, [attic/brody/r2_BtoJ/](attic/brody/r2_BtoJ/README.md): 197.6 MHz, 5767 LUT (−85), 1109 Kbps/LUT, a tie with r2 I within Vivado noise. |
+| K | **Done on top of r2 J:** [attic/brody/r2_BtoK/](attic/brody/r2_BtoK/README.md). Timing only: r2 J's critical path ran wrapper → core → wrapper (PreProcessor → tag compare → `msg_auth` → PostProcessor, 12 levels), not through the wrapper alone. The tag check now only updates `tag_verified`, a new `AUTH` state shows `msg_auth` from registers, and `key_ready` no longer waits for `key_valid`. 204.2 MHz (+3.3%), 5762 LUT, 6611 Mbps long PT, 1147 Kbps/LUT; +1 cycle per decryption, encryption unchanged. Next limit: `ih_v` / `ih` → input buffers. Idea from Logan's cores (`rtl/logan/src/`). |
+| L | **Done on top of K:** [brody/r2_BtoL/](brody/r2_BtoL/README.md). Timing only: `saving_bdo` (store ciphertext or word into the input buffer) is decoded from registers instead of set by the loader's accept, so the accept (`ih_v`, `ks_cnt`, …) reaches only the buffers' write enable, not their data mux. 208.0 MHz, 5742 LUT, 6734 Mbps long PT, 1173 Kbps/LUT; same cycles as K. Remaining limits near 220 MHz: input-side, routing-bound paths (wrapper → `wait_cnt`, `ih → ib`, `ih → kh`). |
+| M | **Tried on top of L, not adopted:** [merged/r2_BtoM/](merged/r2_BtoM/README.md). No mask delay line (Logan's idea): AD / MAC masks summed into `macc` at load and fed to FIN, keystream masks rebuilt at the output by a second KS window. Correct (all sets pass, same cycles), but 5725 LUT (−17) and +333 FF: the new 6-input result mux and second window cost about what the 320 SRLs did. 200.8 MHz (new path `ks_st` → both windows). L stays the r2 core. |
+| N | **Done on Logan's ring:** [merged/pipe16x2d16_ILN/](merged/pipe16x2d16_ILN/README.md), on top of [merged/pipe20x2d16_IL/](merged/pipe20x2d16_IL/README.md) (his 20×2 ring with our I and L: 249.2 MHz, 8021 Mbps). A 32-round ring (16 stages × 2 rounds) with two entry / exit points, so a call can finish opposite where it entered: the 32 rounds per cycle long messages need at the bus limit, not 40. Same cycles; 247.1 MHz, 5176 LUT (−524), 8000 Mbps long PT, **1546 Kbps/LUT**, the best of any core. |
+| Sweep | [brody/gen/](brody/gen/README.md) generalizes B + C + D with R (rounds per unit), S (pipeline stages, a pure register knob), U (units) and a fast loader; `scripts/sweep.py` explores the grid. Built and elaborated; not yet simulated. |
 
 ## 1. Where the time goes today
 
-**RTL map** (only `core_v2_opt*/` gets edited; `lwc/` and `core_v1/` are frozen):
+**RTL map** (only the optimized cores get edited; `shared/lwc/` and `gmu/arch1_v1/` are frozen):
 
 ```
 LWC (lwc/LWC.vhd, frozen) ── PreProcessor / PostProcessor / header FIFO
-└─ CryptoCore            core_v2/CryptoCore.vhd           control FSM, perm_cnt_int, data_cnt_int
-   └─ elephant_datapath  core_v2/elephant_datapath.vhd    ms_reg (state), tag_out, load_data_output, mask muxes
-      ├─ elephant_perm          core_v2/elephant_perm.vhd          Spongent-π[160], combinational
-      └─ elephant_datapath_lfsr core_v2/elephant_datapath_lfsr.vhd mask window φ^(a-1), φ^a, φ^(a+1)
+└─ CryptoCore            brody/base/CryptoCore.vhd           control FSM, perm_cnt_int, data_cnt_int
+   └─ elephant_datapath  brody/base/elephant_datapath.vhd    ms_reg (state), tag_out, load_data_output, mask muxes
+      ├─ elephant_perm          brody/base/elephant_perm.vhd          Spongent-π[160], combinational
+      └─ elephant_datapath_lfsr brody/base/elephant_datapath_lfsr.vhd mask window φ^(a-1), φ^a, φ^(a+1)
 ```
 
 **The permutation loop:** `ms_reg → elephant_perm (PERM_ROUNDS_PER_CYCLE rounds) → ms_reg`
-([elephant_datapath.vhd:200-201](core_v2/elephant_datapath.vhd#L200-L201)). With the current
+([elephant_datapath.vhd:200-201](brody/base/elephant_datapath.vhd#L200-L201)). With the current
 `PERM_ROUNDS_PER_CYCLE = 10`, one permutation takes 8 cycles.
 
 **Baseline numbers** (`reports/benchmark.csv`, `reports/profile.csv`):
@@ -69,7 +71,7 @@ The cycle estimates below are rough per-block models for long messages. Measure 
 | B | Overlap I/O with the permutation | 21 (measured at R=4: 50.7 → 42.8) | about the same | +160 FF (measured +158 FF, about +80 LUT) | FSM rework |
 | C | Two permutation units | 19 alone, about 10–12 with B | about the same | about 2× permutation, +160 FF | datapath + FSM rework |
 | D | Pipeline the permutation and interleave two calls | same cycles as baseline, at about 2× the clock | rises | +160–320 FF, same round logic | permutation + datapath + FSM |
-| E | Stagger the calls (each in-flight call runs on its own schedule) | slots bound it: 2 calls × 20 cycles / slots (measured 10.87 → 9.88 on optBCD) | measured 147.8 → 163.8 MHz | measured +907 LUT, +1018 FF (mask store, keystream FIFO, per-register round index) | datapath + FSM rewrite |
+| E | Stagger the calls (each in-flight call runs on its own schedule) | slots bound it: 2 calls × 20 cycles / slots (measured 10.87 → 9.88 on r4_BtoD) | measured 147.8 → 163.8 MHz | measured +907 LUT, +1018 FF (mask store, keystream FIFO, per-register round index) | datapath + FSM rewrite |
 | F | Fast loader (no decision cycle per block) | PT unchanged (slot-bound); AD 6.02 → 5.01, the 32-bit bus limit | same | none (measured −8 LUT) | loader only |
 | G | Double the slots (4 units × 2 stages) and shorten the control paths | 160 / (total rounds per cycle): 9.86 → 4.93, the bus limit | measured 162.4 → 161.2 MHz | measured +1664 LUT, +1411 FF | generic ring + issue engine |
 | H | Load new calls into stage 0 only; mask delay line instead of mask store | same as G (4.93) | measured 161.2 → 174.6 MHz | measured −1799 LUT, −1471 FF | issue engine + datapath |
@@ -78,6 +80,7 @@ The cycle estimates below are rough per-block models for long messages. Measure 
 | K | No combinational path through the core: tag result and `msg_auth` from registers, `key_ready` not gated by `key_valid` | same; +1 cycle per decryption | measured at 2 rounds/stage: 197.6 → 204.2 MHz | none (5767 → 5762 LUT) | main FSM only |
 | L | Input buffer data select (`saving_bdo`) from registers, not the word accept | same | measured at 2 rounds/stage: 204.2 → 208.0 MHz | none (5762 → 5742 LUT) | loader only |
 | M | No mask delay line: masks summed at load (tag) or rebuilt at the output (keystream) | same | measured 208.0 → 200.8 MHz | −17 LUT, +333 FF: not adopted | datapath + issue engine |
+| N | Logan's ring at 16 × 2 = 32 rounds with two entry / exit points | same (4.94, the bus limit) | measured 249.2 → 247.1 MHz (noise) | measured −524 LUT, −670 FF | ring (`spongent_perm_pipe.sv`) + issue logic |
 
 **Which files each option touches** (✎ = edit, · = unchanged):
 
@@ -145,8 +148,8 @@ keystream for block k+1 has to live somewhere other than `ms_reg` while the MAC 
 **Gain.** The roughly 6 I/O cycles per block hide behind 8 permutation cycles: about 27 → 21 cycles per
 block. This option also builds most of the FSM that C and D need.
 
-**As built ([core_v2_r4_optB/](core_v2_r4_optB/OPT_B.md)).** It follows the plan above, with these differences:
-- **Keystream mask.** KS(k+1) needs cur ⊕ next, a mask leg `core_v2` doesn't have. The 6-way select became
+**As built ([brody/r4_B/](brody/r4_B/README.md)).** It follows the plan above, with these differences:
+- **Keystream mask.** KS(k+1) needs cur ⊕ next, a mask leg `brody/base` doesn't have. The 6-way select became
   `src xor mask` (`src_sel`: ms / input block / N‖0 / tag; `mask_sel`: none / prev / prev⊕next / cur⊕next / L).
 - **Nonce.** It comes straight from `npub_out` (`SRC_NONCE`). Otherwise it would overwrite C(k) in
   `load_data_output` while C(k) waits for its MAC. The MAC start captures `C(k) ⊕ masks` into `ms_reg` in one
@@ -159,7 +162,7 @@ block. This option also builds most of the FSM that C and D need.
 - **LFSR start position.** The message reload starts the LFSR at a = 0, not a = 1, so every keystream uses
   cur ⊕ next.
 
-Measured at R = 4 against `core_v2_r4`:
+Measured at R = 4 against `brody/base_r4`:
 - **Plaintext:** 50.74 → 42.81 cycles per block.
 - **AD:** 28.08 → 22.06 cycles per block.
 - **Long profile:** I/O-only cycles drop from 12.6% to 0.3%.
@@ -224,7 +227,7 @@ time as the message is harder: the AD and the message both use the single mask L
 option B, where it approaches max(8 permutation cycles, about 6 I/O cycles) plus control. Area goes up by
 roughly one more permutation's worth of LUTs, so throughput per LUT improves less than raw throughput.
 
-**As built, combined with B ([core_v2_r4_optBC/](core_v2_r4_optBC/OPT_BC.md)).** Pairing KS(k+1) with MAC(k)
+**As built, combined with B ([brody/r4_BtoC/](brody/r4_BtoC/README.md)).** Pairing KS(k+1) with MAC(k)
 would make streaming wait for KS(k+1), which undoes B. Instead, unit A runs MAC(k) while unit B runs KS(k+2), and
 block k+1 streams from KS(k+1), computed one round earlier. That needs φ^k, φ^(k+2) and φ^(k+3) at once, so the
 LFSR window grew by one mask (next2, 176 → 184 bits).
@@ -233,8 +236,8 @@ AD pairs are set up with next/next2. The LFSR steps once mid-permutation, so the
 window advances two per pair.
 
 Measured at R = 4:
-- **Cycles:** 21.74 per PT block (optB 42.81) and 11.19 per AD block (optB 22.06).
-- **Area:** +854 LUT and +329 FF over optB.
+- **Cycles:** 21.74 per PT block (r4_B 42.81) and 11.19 per AD block (r4_B 22.06).
+- **Area:** +854 LUT and +329 FF over r4_B.
 - **Fmax:** 184.3 → 169.5 MHz. The new critical path is control fanout into the 160-bit muxes.
 
 ## 6. Option D: pipeline the permutation and interleave two calls
@@ -268,15 +271,15 @@ or the LWC wrapper. Check the Vivado timing report before adding more stages.
 
 ## 7. Option E: stagger the calls
 
-**Idea.** In optBCD the 4 in-flight calls move in lockstep: a batch loads together, runs 20 cycles
+**Idea.** In r4_BtoD the 4 in-flight calls move in lockstep: a batch loads together, runs 20 cycles
 together and unloads together. So a batch waits for its slowest input, every batch pays setup and unmask
 cycles, and slots sit idle between batches. In E every stage register carries its own call, with its own
 round counter, so each call starts as soon as its input is ready and finishes 20 cycles later on its own.
-The hardware shape is the same as optBCD (2 units × 2 stages × 4 rounds).
+The hardware shape is the same as r4_BtoD (2 units × 2 stages × 4 rounds).
 
-**Files and changes** (details in [core_v2_r4_optBCDE/OPT_BCDE.md](core_v2_r4_optBCDE/OPT_BCDE.md))
+**Files and changes** (details in [brody/r4_BtoE/README.md](brody/r4_BtoE/README.md))
 - `elephant_datapath.vhd`
-  - One shared load path `x = src ⊕ mask`, chosen by the call kind, replaces optBCD's four slot muxes. At
+  - One shared load path `x = src ⊕ mask`, chosen by the call kind, replaces r4_BtoD's four slot muxes. At
     most one call starts per cycle.
   - Each register's round index `pc(p)` moves through the ring with its call.
   - A 4-entry mask store keeps each call's mask for unmasking at the end.
@@ -293,9 +296,9 @@ The hardware shape is the same as optBCD (2 units × 2 stages × 4 rounds).
     start right after the nonce.
 
 **Result.**
-- **Cycles:** 9.88 per PT block (optBCD 10.87) and 6.02 per AD block (optBCD 6.50); 1536 B PT 931 → 848.
-- **Area:** 5639 LUT, 3421 FF (+907 LUT, +1018 FF over optBCD).
-- **Fmax:** 147.8 → 163.8 MHz, because optBCD's batch_done → loader handshake path is gone.
+- **Cycles:** 9.88 per PT block (r4_BtoD 10.87) and 6.02 per AD block (r4_BtoD 6.50); 1536 B PT 931 → 848.
+- **Area:** 5639 LUT, 3421 FF (+907 LUT, +1018 FF over r4_BtoD).
+- **Fmax:** 147.8 → 163.8 MHz, because r4_BtoD's batch_done → loader handshake path is gone.
 - **Throughput:** 2652 Mbps long PT, 470 Kbps/LUT.
 - **Critical path:** three paths within 1.4%: stage register → 4 rounds → 4:1 result mux; keystream FIFO →
   `bdo` → PostProcessor; issue → shared `x` → stage register.
@@ -309,9 +312,9 @@ longer needs a wider batch or a wider tag XOR.
 **Idea.** The loader spent a decision cycle after each block (`data_cnt = BLOCK_SIZE`) to mark the buffer
 full, pop the keystream and switch buffers, so a 5-word block took 6 cycles. F does all of that in the
 cycle the last word goes in, and starts the next block the cycle after if the other buffer is free. It is
-the same idea as `G_FAST_LOADER` in [core_v2_gen](core_v2_gen/GEN.md), applied to E's two-buffer loader.
+the same idea as `G_FAST_LOADER` in [brody/gen](brody/gen/README.md), applied to E's two-buffer loader.
 
-**Files and changes** (details in [core_v2_r4_optBCDEF/OPT_BCDEF.md](core_v2_r4_optBCDEF/OPT_BCDEF.md))
+**Files and changes** (details in [brody/r4_BtoF/README.md](brody/r4_BtoF/README.md))
 - `CryptoCore.vhd` only. The loader works out the block's end state in variables in the last word's cycle.
   - Block 0 (N‖AD0) initializes the tag from buffer 0 while that buffer still takes its last word, so
     the tag initialization is delayed one cycle (`tag_init_d`).
@@ -333,9 +336,9 @@ a result looks out of line.
 **Idea.** After F, plaintext was bound by the slots: 2 calls per block × 20 cycles / 4 slots = 10 cycles
 per block. With staggered calls, cycles per block ≈ 160 / (rounds computed per cycle over all units), so
 doubling the round hardware (4 units × 2 stages × 4 rounds = 32 rounds per cycle) brings plaintext to 5,
-the bus limit. To keep the clock, G also shortens the three paths that tied in optBCDEF.
+the bus limit. To keep the clock, G also shortens the three paths that tied in r4_BtoF.
 
-**Files and changes** (details in [core_v2_r4_optBCDEFG/OPT_BCDEFG.md](core_v2_r4_optBCDEFG/OPT_BCDEFG.md))
+**Files and changes** (details in [brody/r4_BtoG/README.md](brody/r4_BtoG/README.md))
 - `elephant_constants.vhd`: `NUNIT`, `NSTAGE` (generic rings: `nxt`, `prv`, `vslot`), `NKS` = 6, and a
   round-constant table `RC_TAB` generated from the Spongent LFSR for any rounds per stage.
 - `elephant_perm.vhd`: takes the round constants as a registered input instead of a round counter.
@@ -351,12 +354,12 @@ the bus limit. To keep the clock, G also shortens the three paths that tied in o
   - Per-register round constants are registered next to the round counters.
 
 **Result.**
-- **Cycles:** 4.93 per PT block (optBCDEF 9.86) and 5.00 per AD block; 1536 B PT 847 → 470. Short
+- **Cycles:** 4.93 per PT block (r4_BtoF 9.86) and 5.00 per AD block; 1536 B PT 847 → 470. Short
   messages pay 2–3 cycles for the extra issue stage (16 B: 87 → 90).
 - **Keystream depth:** NKS = 6 is needed to reach 5 cycles per block (NKS 3/4/5: 9.9/7.5/5.9).
-- **Area:** 7295 LUT, 4841 FF (+1664 LUT, +1411 FF over optBCDEF).
+- **Area:** 7295 LUT, 4841 FF (+1664 LUT, +1411 FF over r4_BtoF).
 - **Fmax:** 161.2 MHz.
-- **Throughput:** 5219 Mbps long PT (×1.99 vs optBCDEF), 715 Kbps/LUT (×1.53).
+- **Throughput:** 5219 Mbps long PT (×1.99 vs r4_BtoF), 715 Kbps/LUT (×1.53).
 - **Critical path:** stage register → 4 rounds → 8:1 result mux. The ring itself and the frozen wrapper
   are within 0.13 ns of it, so about 170 MHz is the floor at 4 rounds per stage.
 
@@ -373,7 +376,7 @@ indexed mask store with its own 8:1 read mux: about 2100 LUT and 1280 FF that ar
 count per ring divides evenly (`PERM_CYCLES mod NSTAGE = 0`), a call loaded into stage 0 always finishes in
 the last stage and frees its slot back to stage 0, so loading only into stage 0 costs no cycles.
 
-**Files and changes** (details in [core_v2_r4_optBCDEFGH/OPT_BCDEFGH.md](core_v2_r4_optBCDEFGH/OPT_BCDEFGH.md))
+**Files and changes** (details in [brody/r4_BtoH/README.md](brody/r4_BtoH/README.md))
 - `elephant_constants.vhd`: 2 rings × 4 stages instead of 4 × 2 (fewer stage-0 load muxes, 2:1 result
   mux); `vslot` gone. 1 × 8 is not possible at 4 rounds per stage (20 mod 8 ≠ 0).
 - `elephant_datapath.vhd`
@@ -393,7 +396,7 @@ the last stage and frees its slot back to stage 0, so loading only into stage 0 
 - **Throughput:** 5653 Mbps long PT, 1029 Kbps/LUT (G 715, ×1.44).
 - **Critical path:** the frozen wrapper's PreProcessor FSM → loader handshake → `dp/ib`, `dp/kh`.
 
-**Also tried: 2 rounds per stage** ([core_v2_r2_optBCDEFGH/](core_v2_r2_optBCDEFGH/OPT_BCDEFGH_R2.md), 2 × 8
+**Also tried: 2 rounds per stage** ([brody/r2_BtoH/](brody/r2_BtoH/README.md), 2 × 8
 stages, NKS = 10). Same cycles per block, but 171.4 MHz, 5786 LUT, 4766 FF and 60 more cycles on short
 messages (each dependent call takes 40 cycles). The wrapper path is the limit there too, so shorter stages
 don't help.
@@ -405,7 +408,7 @@ other six were our loader turning "a word is accepted" into the keystream head's
 fanouts. Registering both handshakes takes the wrapper off every core path; building the head's next value
 from registers leaves the accept as the last mux select.
 
-**Files and changes** (details in [core_v2_r4_optBCDEFGHI/OPT_BCDEFGHI.md](core_v2_r4_optBCDEFGHI/OPT_BCDEFGHI.md))
+**Files and changes** (details in [brody/r4_BtoI/README.md](brody/r4_BtoI/README.md))
 - `CryptoCore.vhd`
   - 2-entry register slice on `bdi` (word, valid bytes, size, eot, type, decrypt flag): `bdi_ready` is a
     flip-flop, the loader decides on a registered word.
@@ -422,7 +425,7 @@ from registers leaves the accept as the last mux select.
 - **Fmax:** 182.5 MHz (+4.5%). The rounds are now the critical path (5–6 levels, about 73% routing).
 - **Throughput:** 5909 Mbps long PT, 1081 Kbps/LUT (H 1029); 16 B PT 254 Mbps (H 248).
 
-**At 2 rounds per stage** ([core_v2_r2_optBCDEFGHI/](core_v2_r2_optBCDEFGHI/OPT_BCDEFGHI_R2.md)): 201.4 MHz
+**At 2 rounds per stage** ([attic/brody/r2_BtoI/](attic/brody/r2_BtoI/README.md)): 201.4 MHz
 (r2 H 171.4), 5852 LUT, 4933 FF, 6521 Mbps long PT, 1114 Kbps/LUT. Its critical path is now inside the
 frozen wrapper (PreProcessor FSM → PostProcessor FSM), so this is about as fast as the wrapper allows. It
 loses to I at 4 rounds per stage on every message up to at least 1536 B (16 B: 152 vs 92 cycles).
@@ -434,7 +437,7 @@ cells, about 5 per state bit, because the datapath decoded the call's kind into 
 mask select. Every mask is the XOR of one term from {0, φ^k, keystream φ^k, L} and one from
 {0, φ^(k+2), φ^(k+1)}, so three 4:1 muxes on 2-bit selects do the same job in about 4 LUTs per bit.
 
-**Files and changes** (details in [core_v2_r4_optBCDEFGHIJ/OPT_BCDEFGHIJ.md](core_v2_r4_optBCDEFGHIJ/OPT_BCDEFGHIJ.md))
+**Files and changes** (details in [brody/r4_BtoJ/README.md](brody/r4_BtoJ/README.md))
 - `CryptoCore.vhd`: the issue decision registers `iss_src`, `iss_ma`, `iss_mb` with the call's kind.
 - `elephant_datapath.vhd`: source, A and B as `with … select` muxes; `mask = A ⊕ B`, `x = source ⊕ mask`.
 
@@ -442,7 +445,7 @@ mask select. Every mask is the XOR of one term from {0, φ^k, keystream φ^k, L}
 (−71, −1.3%, about the size of Vivado's run-to-run LUT spread); 1094 Kbps/LUT. At 2 rounds per stage: 5767 LUT (−85) at 197.6 MHz (r2 I: 201.4 MHz; the wrapper-bound clock varies by a few percent between searches), 1109 Kbps/LUT.
 
 **Tool flows** (same RTL as I; see the "Tool flow study" in
-[core_v2_r4_optBCDEFGHI/OPT_BCDEFGHI.md](core_v2_r4_optBCDEFGHI/OPT_BCDEFGHI.md)): timing-driven synthesis
+[brody/r4_BtoI/README.md](brody/r4_BtoI/README.md)): timing-driven synthesis
 and timing directives reach 191.2 MHz but with +17% LUTs (969 Kbps/LUT); area directives reach 5100 LUT at
 169.8 MHz (1078 Kbps/LUT). Neither beats the standard flow on throughput per LUT, so all results use it.
 
@@ -458,7 +461,7 @@ and timing directives reach 191.2 MHz but with +17% LUTs (969 Kbps/LUT); area di
 4. **B on top of C or D.** After the permutation cycles are cut, I/O and control overhead is most of each
    block, and this is where the remaining gain is.
 
-   *Update:* B was built first, as `core_v2_r4_optB`. For C or D, start from that core: its loader and
+   *Update:* B was built first, as `brody/r4_B`. For C or D, start from that core: its loader and
    KS(k+1)/MAC(k) schedule are exactly the pairing C and D need. A second unit would run KS(k+1) at the same
    time as MAC(k) instead of before it.
 5. **E, then F, on top of B + C + D.** Once there are several slots, lockstep batches waste them; staggering
@@ -476,6 +479,6 @@ and timing directives reach 191.2 MHz but with +17% LUTs (969 Kbps/LUT); area di
    one or two LUTs per state bit for functions the algorithm needs, and the rounds are within about 6% of
    their packing floor.
 
-Every variant goes in its own `rtl/core_v2_optN/` (copy `core_v2`, fix `filelist.txt`, keep the entity
-name `CryptoCore`). Then run `make sim-all`, `make cycles`, `make profile WL=long|short`, `make synth`
+Every variant goes in its own directory, named as in [README.md](README.md) (copy `brody/base`, fix `filelist.txt`,
+keep the entity name `CryptoCore`). Then run `make sim-all`, `make cycles`, `make profile WL=long|short`, `make synth`
 and `make report`, as described in the README's Benchmarking section.

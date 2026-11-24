@@ -1,0 +1,12 @@
+# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
+# Each probe is a std_logic that is '1' exactly in the cycles a permutation slot computes rounds.
+# brody/r4_BtoG has NUNIT x NSTAGE = 4 x 2 stage registers, each with its own staggered call:
+# g_busy(p)/busy = register p (ring p / 2, stage p mod 2) holds a live call.
+perm_a0  g_busy(0)/busy
+perm_a1  g_busy(1)/busy
+perm_b0  g_busy(2)/busy
+perm_b1  g_busy(3)/busy
+perm_c0  g_busy(4)/busy
+perm_c1  g_busy(5)/busy
+perm_d0  g_busy(6)/busy
+perm_d1  g_busy(7)/busy

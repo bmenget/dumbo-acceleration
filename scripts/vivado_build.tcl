@@ -27,7 +27,7 @@ file mkdir $outdir
 set_param general.maxThreads 8
 
 # Compile-ordered source files, absolute paths. VHDL-2008 is required (process(all) in CryptoCore).
-# .sv / .v files (Logan's cores, rtl/logan/) are read as SystemVerilog / Verilog.
+# .sv / .v files (Logan's cores, rtl/logan/src/) are read as SystemVerilog / Verilog.
 set fh [open $filelist r]
 set files [split [string trim [read $fh]] "\n"]
 close $fh
@@ -39,7 +39,7 @@ foreach f $files {
     }
 }
 
-# Verilog defines: defines.txt next to the file list (written by synth.py from rtl/core_<core>/defines.txt),
+# Verilog defines: defines.txt next to the file list (written by synth.py from rtl/<core>/defines.txt),
 # one NAME=VALUE per line, # comments. Passed to synth_design as -verilog_define.
 set vdefs {}
 set dfile [file join [file dirname $filelist] defines.txt]

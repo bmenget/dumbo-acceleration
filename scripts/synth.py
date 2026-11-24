@@ -2,7 +2,7 @@
 """Find Fmax and area of the LWC top (wrapper + core) for one core.
 
 Steps:
-  1. take the core's compile-ordered file list (rtl/core_<core>/filelist.txt),
+  1. take the core's compile-ordered file list (rtl/<core>/filelist.txt),
   2. run Vivado out-of-context synth + impl at a target clock period (scripts/vivado_build.tcl),
   3. search for Fmax with scripts/fmax.py: a tight probe target predicted from the rounds per cycle,
      then retargets with calibrated headroom until a met run is bracketed by a tighter failed one
@@ -20,7 +20,7 @@ reports/flow_runs.csv / reports/flow_results.csv (same columns plus `flow`), so 
 `make report` uses all come from one flow ("base").
 
 Usage (Vivado on PATH: `source ./setup.sh vivado`):
-  python3 scripts/synth.py --core v2_opt1
+  python3 scripts/synth.py --core brody/r4_BtoJ
 """
 import argparse
 import csv
@@ -110,7 +110,7 @@ def synth_core(core, period0, max_iter, flow="base"):
     run_cols, res_cols = (RUN_COLS, RES_COLS) if flow == "base" else (RUN_COLS + ["flow"], RES_COLS + ["flow"])
     extra = {} if flow == "base" else {"flow": flow}
     rnd, cpp = core_info.rounds(core)
-    flist = ROOT / "rtl" / f"core_{core}" / "filelist.txt"
+    flist = ROOT / "rtl" / core / "filelist.txt"
     if not flist.exists():
         sys.exit(f"{flist} not found")
     base = ROOT / "build" / "synth" / core
@@ -126,7 +126,7 @@ def synth_core(core, period0, max_iter, flow="base"):
     elif staged.exists():
         staged.unlink()
 
-    say(f"\n=== core_{cfg}: part {PART}, top {TOP} ===")
+    say(f"\n=== {cfg}: part {PART}, top {TOP} ===")
     if period0 is None:
         period0 = fmax.probe_period(rnd, core_info.slots(core)) if rnd != "" else 6.0
 
@@ -162,7 +162,7 @@ def synth_core(core, period0, max_iter, flow="base"):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--core", required=True, help="core name: rtl/core_<core>/ (e.g. v2, v2_opt1)")
+    ap.add_argument("--core", required=True, help="core name: path under rtl/ (e.g. brody/base, merged/pipe16x2d16_ILN)")
     ap.add_argument("--period0", type=float, default=None,
                     help="first clock target in ns (default: fmax.py's probe predicted from the rounds per cycle)")
     ap.add_argument("--max-iter", type=int, default=fmax.MAX_RUNS, help="Vivado runs at most")

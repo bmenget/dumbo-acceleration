@@ -1,16 +1,18 @@
 # Elephant Dumbo (v2) FPGA project
 #
-# CORE selects the RTL: rtl/core_<CORE>/ (filelist.txt in compile order).
-#   v1        Elephant v1, GMU arch-1, unmodified: the validation control
-#   v2        Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
-#   v2_opt1   ... optimized v2 cores (copy core_v2, then edit)
-#   v2_logan_*  Logan's SystemVerilog cores (rtl/logan/, see its UPSTREAM.md); sizes in rtl/core_<CORE>/defines.txt
-# The spec (C model and vectors) is the part before the first '_': v2_opt1 is checked against v2.
-# SPEC=v1 / SPEC=v2 still works as a shorthand for CORE=v1 / CORE=v2.
+# CORE selects the RTL: rtl/<CORE>/ (filelist.txt in compile order); the name is the path under rtl/.
+#   gmu/arch1_v1   Elephant v1, GMU arch-1, unmodified: the validation control
+#   brody/base     Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
+#   brody/*        our v2 cores (base_rN: rounds per cycle; r4_BtoJ: options B through J at 4 rounds/stage)
+#   logan/*        Logan's SystemVerilog cores (shared sources in rtl/logan/src/); sizes in rtl/<CORE>/defines.txt
+#   merged/*       Logan's cores with our options, and our cores with his ideas
+#   attic/*        superseded cores, kept buildable
+# The spec (C model and vectors) is v1 for gmu/* cores and v2 for every other core.
+# SPEC=v1 / SPEC=v2 without CORE is a shorthand for CORE=gmu/arch1_v1 / CORE=brody/base.
 #
 # SET picks the vector set for `make sim` (sim-all runs every validation set for the spec):
 #   gmu     v1 only. GMU's shipped 3201 vectors. Use to confirm the flow/simulator/testbench
-#           work on known-good hardware (core_v1) before trusting anything else.
+#           work on known-good hardware (gmu/arch1_v1) before trusting anything else.
 #   random  1000 random enc/dec vectors, AD/PT up to 1000 B, with key reuse. General
 #           regression.
 #   edge    374 vectors: AD/PT lengths straddling block boundaries (AD at 8/28/48 B, PT at
@@ -25,10 +27,10 @@
 #   prof_short, prof_long   one workload each (16+16 B, 1536+1536 B); used by `make profile`.
 #
 # Benchmark flow for a core (all write results keyed by CORE):
-#   make sim-all CORE=v2_opt1        1. validate: must PASS before any number below means anything
-#   make cycles  CORE=v2_opt1        2. measured cycles per message -> build/sim/questa/<core>/cycles/timing.csv
-#   make profile CORE=v2_opt1 WL=long   3. where the cycles go (permutation busy / I/O / idle) -> reports/profile.csv
-#   make synth   CORE=v2_opt1        4. Fmax and area (source ./setup.sh vivado first) -> reports/synth_results.csv
+#   make sim-all CORE=brody/r4_BtoJ  1. validate: must PASS before any number below means anything
+#   make cycles  CORE=brody/r4_BtoJ  2. measured cycles per message -> build/sim/questa/<core>/cycles/timing.csv
+#   make profile CORE=brody/r4_BtoJ WL=long   3. where the cycles go (permutation busy / I/O / idle) -> reports/profile.csv
+#   make synth   CORE=brody/r4_BtoJ  4. Fmax and area (source ./setup.sh vivado first) -> reports/synth_results.csv
 #                                       Fmax search: scripts/fmax.py (tight probe, calibrated retargets, <= 4 runs).
 #                                       PERIOD0=<ns> overrides the first (probe) target.
 #   make report                      5. every core vs the baseline -> reports/benchmark.csv
@@ -37,14 +39,16 @@
 # Other examples:
 #   make models                      build C models into model/lib, check v2 vs official KAT
 #   make kat SPEC=v2                 generate kat/v2/gen/<set> for every set
-#   make sim CORE=v1 SET=gmu         run LWC_TB on core_v1 with GMU's shipped vectors
+#   make sim SPEC=v1 SET=gmu         run LWC_TB on gmu/arch1_v1 with GMU's shipped vectors
 #   make sim SIM=ghdl ...            use GHDL instead of Questa (default: questa; source ./setup.sh)
 
 SPEC_DEFAULT := v2
+CORE_v1 := gmu/arch1_v1
+CORE_v2 := brody/base
 ifeq ($(origin CORE),undefined)
-CORE := $(if $(SPEC),$(SPEC),$(SPEC_DEFAULT))
+CORE := $(CORE_$(if $(SPEC),$(SPEC),$(SPEC_DEFAULT)))
 endif
-CORE_SPEC := $(firstword $(subst _, ,$(CORE)))
+CORE_SPEC := $(if $(filter gmu/%,$(CORE)),v1,v2)
 ifneq ($(SPEC),)
 ifneq ($(SPEC),$(CORE_SPEC))
 $(error CORE=$(CORE) implements spec $(CORE_SPEC), but SPEC=$(SPEC))
@@ -62,9 +66,9 @@ ALGO_v1 := elephant160v1
 ALGO_v2 := elephant160v2
 ALGO    := $(ALGO_$(SPEC))
 ifeq ($(ALGO),)
-$(error CORE must start with v1 or v2, got '$(CORE)')
+$(error SPEC must be v1 or v2, got '$(SPEC)')
 endif
-COREDIR  := rtl/core_$(CORE)
+COREDIR  := rtl/$(CORE)
 ifeq ($(wildcard $(COREDIR)/filelist.txt),)
 $(error $(COREDIR)/filelist.txt not found (CORE=$(CORE)))
 endif
@@ -73,7 +77,7 @@ PY       := .venv/bin/python
 TOP      := LWC_TB
 SRCS     := $(shell cat $(COREDIR)/filelist.txt tb/filelist.txt)
 # Mixed-language cores: .vhd files go to vcom (in filelist order), .sv/.v files to vlog afterwards.
-# Verilog defines (NAME=VALUE per line, # comments) come from rtl/core_<CORE>/defines.txt if it exists.
+# Verilog defines (NAME=VALUE per line, # comments) come from rtl/<CORE>/defines.txt if it exists.
 VHDL_SRCS := $(filter %.vhd,$(SRCS))
 VLOG_SRCS := $(filter %.sv %.v,$(SRCS))
 DEFINES   := $(shell sed 's/\#.*//' $(COREDIR)/defines.txt 2>/dev/null)
@@ -124,7 +128,7 @@ sim:
 	@test -f $(KATDIR)/pdi.txt || { echo "no vectors in $(KATDIR) (run make kat SPEC=$(SPEC))"; exit 1; }
 	@rm -rf $(SIMDIR) && mkdir -p $(SIMDIR)
 ifeq ($(SIM),ghdl)
-	@test -z "$(VLOG_SRCS)" || { echo "SIM=ghdl: core_$(CORE) has Verilog sources; use SIM=questa"; exit 1; }
+	@test -z "$(VLOG_SRCS)" || { echo "SIM=ghdl: $(CORE) has Verilog sources; use SIM=questa"; exit 1; }
 	@mkdir -p build/ghdl/$(CFG)
 	$(GHDL) -a $(GHDLFLAGS) $(SRCS)
 	$(GHDL) -e $(GHDLFLAGS) $(TOP)
@@ -150,13 +154,13 @@ cycles:
 	@test "$(SPEC)" = v2 || { echo "make cycles: v2 cores only"; exit 1; }
 	@$(MAKE) --no-print-directory sim CORE=$(CORE) SET=cycles TESTMODE=4 SIM=$(SIM)
 
-# Where the cycles go: dumps the core's busy signals (rtl/core_<core>/profile.txt) and its data
+# Where the cycles go: dumps the core's busy signals (rtl/<core>/profile.txt) and its data
 # handshakes to a VCD while running prof_<WL>, then classifies every clock cycle. Questa only.
 PROF_DO := $(ABS)/build/prof/$(CORE).do
 profile:
 	@test "$(SIM)" = questa || { echo "make profile: needs SIM=questa"; exit 1; }
 	@test -f $(COREDIR)/profile.txt || { echo "make profile: $(COREDIR)/profile.txt missing (see scripts/profile.py)"; exit 1; }
-	@mkdir -p build/prof && python3 scripts/profile.py do --core $(CORE) --out $(PROF_DO)
+	@mkdir -p $(dir $(PROF_DO)) && python3 scripts/profile.py do --core $(CORE) --out $(PROF_DO)
 	@$(MAKE) --no-print-directory sim CORE=$(CORE) SET=prof_$(WL) SIM=questa \
 	  VSIM_FLAGS=-voptargs=+acc VSIM_DO="do $(PROF_DO)"
 	@python3 scripts/profile.py parse --core $(CORE) --workload $(WL) \
@@ -168,7 +172,7 @@ profile:
 synth:
 	python3 scripts/synth.py --core $(CORE) $(if $(PERIOD0),--period0 $(PERIOD0))
 
-# Every v2 core with measured cycles, joined with its latest synthesis, against the baseline core_v2.
+# Every v2 core with measured cycles, joined with its latest synthesis, against the baseline brody/base.
 report:
 	python3 scripts/report.py
 

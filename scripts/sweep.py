@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Design-space sweep of the parameterized core rtl/core_v2_gen/ (see rtl/core_v2_gen/GEN.md).
+"""Design-space sweep of the parameterized core rtl/brody/gen/ (see rtl/brody/gen/README.md).
 
 For every point (R rounds per unit, S pipeline stages per unit, U units, fast loader on/off):
-  1. write the core into a temporary folder: rtl/core_v2_gen/*.vhd with the four G_* constants set,
+  1. write the core into a temporary folder: rtl/brody/gen/*.vhd with the four G_* constants set,
   2. compile with Questa and run two LWC_TB sets: `edge` (block-boundary lengths, enc + dec) and `cycles`
      (timing mode; also checks every output and includes 1536 B messages, so multi-batch scheduling is
      exercised). Either failing stops the point,
@@ -50,7 +50,7 @@ import critpath  # noqa: E402
 import fmax  # noqa: E402
 import metrics  # noqa: E402
 
-GEN = ROOT / "rtl" / "core_v2_gen"
+GEN = ROOT / "rtl" / "brody" / "gen"
 OUTDIR = ROOT / "reports" / "sweep"
 SWEEP_CSV = OUTDIR / "sweep.csv"
 RUNS_CSV = OUTDIR / "sweep_runs.csv"
@@ -61,8 +61,8 @@ SNAP = BUILD / "snapshot"
 SETS = ("edge", "cycles")
 DEVICE_LUTS = 63400            # xc7a100t
 
-# LUT estimate, least-squares fit on the synthesized cores (2026-11-19: core_v2_r1..r16, v2, optB, optBC,
-# optBCD, v2_gen; within +-9%). Fitted on N <= 4, so larger N is an extrapolation: compare with luts.
+# LUT estimate, least-squares fit on the synthesized cores (2026-11-19: brody/base_r1..r16, v2, r4_B, r4_BtoC,
+# r4_BtoD, brody/gen; within +-9%). Fitted on N <= 4, so larger N is an extrapolation: compare with luts.
 LUT_FIXED, LUT_PER_ROUND, LUT_PER_SLOT = 887, 165, 346
 
 CFG_COLS = ["date", "tag", "rtl_hash", "point", "R", "S", "U", "fast_loader",
@@ -107,7 +107,7 @@ def point_name(R, S, U, fast):
     return f"r{R}s{S}u{U}" + ("f" if fast else "")
 
 
-SOURCES = (("core", GEN), ("lwc", ROOT / "rtl" / "lwc"), ("tb", ROOT / "tb"))
+SOURCES = (("core", GEN), ("lwc", ROOT / "rtl" / "shared" / "lwc"), ("tb", ROOT / "tb"))
 
 
 def rtl_hash(base=None):
@@ -170,9 +170,9 @@ def write_core(dst, R, S, U, fast, snap):
     c.write_text(s)
     files = []
     for rel in (snap / "core" / "filelist.txt").read_text().split():
-        if rel.startswith("rtl/core_v2_gen/"):
+        if rel.startswith("rtl/brody/gen/"):
             files.append(rtl / Path(rel).name)
-        elif rel.startswith("rtl/lwc/"):
+        elif rel.startswith("rtl/shared/lwc/"):
             files.append(snap / "lwc" / Path(rel).name)
         else:
             raise RuntimeError(f"unexpected file in the core's filelist: {rel}")
@@ -259,11 +259,11 @@ def done_points(tag, h):
 
 
 def baseline_row():
-    """core_v2's row of reports/benchmark.csv, for the x_ speedups."""
+    """brody/base's row of reports/benchmark.csv, for the x_ speedups."""
     f = ROOT / "reports" / "benchmark.csv"
     if f.exists():
         for r in csv.DictReader(f.open()):
-            if r["core"] == "v2":
+            if r["core"] == "brody/base":
                 return r
     return None
 

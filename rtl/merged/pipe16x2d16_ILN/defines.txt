@@ -1,0 +1,7 @@
+# Verilog defines for Logan's core (see rtl/logan/src/UPSTREAM.md): one NAME=VALUE per line.
+# make sim passes them to vlog (+define+), make synth to synth_design (-verilog_define).
+# 16 x 2 = 32 rounds with 2 entry/exit points (README.md); keystream FIFO 16 deep.
+DUMBO_S=16
+DUMBO_K=2
+DUMBO_D=16
+DUMBO_P=2

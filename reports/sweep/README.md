@@ -1,7 +1,7 @@
 # Design-space sweep
 
 Results of `scripts/sweep.py`: one row per design point of the parameterized core
-[rtl/core_v2_gen/](../../rtl/core_v2_gen/GEN.md). It's kept apart from `reports/benchmark.csv`, which
+[rtl/brody/gen/](../../rtl/brody/gen/README.md). It's kept apart from `reports/benchmark.csv`, which
 covers the named cores, but the metric columns are computed by the same code (`scripts/metrics.py`), so
 named cores and sweep points can go on the same plots.
 
@@ -27,7 +27,7 @@ python3 scripts/sweep.py --tag fastloader --fast 1 --R 4,8,16 --S 1,2,4 --U 2,4
   point's estimate, and `luts_est` sits next to `luts` in every row so the estimate can be checked.
 - **Vivado timeout:** a run longer than `--vivado-timeout` hours (default 3) is killed and the point is
   recorded as `error`.
-- **RTL snapshot:** at startup, `rtl/core_v2_gen`, `rtl/lwc` and `tb` are copied to
+- **RTL snapshot:** at startup, `rtl/brody/gen`, `rtl/shared/lwc` and `tb` are copied to
   `build/sweep/snapshot/<rtl_hash>/`, and every point is built from that copy. Editing the RTL while a
   sweep runs can't mix versions. Run one sweep at a time.
 - **Resume:** a point already in `sweep.csv` with the same `tag`, configuration and `rtl_hash` is skipped,
@@ -56,16 +56,16 @@ named copy.
 ## sweep.csv columns
 | Column | Meaning |
 |---|---|
-| `date`, `tag`, `rtl_hash` | When, which sweep, and a hash of `rtl/core_v2_gen`, `rtl/lwc` and `tb` (rows from older RTL keep their old hash) |
+| `date`, `tag`, `rtl_hash` | When, which sweep, and a hash of `rtl/brody/gen`, `rtl/shared/lwc` and `tb` (rows from older RTL keep their old hash) |
 | `point` | `r<R>s<S>u<U>`, plus `f` with the fast loader |
 | `R`, `S`, `U`, `fast_loader` | Configuration |
-| `rps`, `N`, `M`, `perm_cycles`, `tail_rounds`, `rot`, `nmask` | Derived: rounds per stage, calls in flight, message blocks per round, cycles per call, rounds in the last pass, result offset, masks in the LFSR window (see GEN.md) |
+| `rps`, `N`, `M`, `perm_cycles`, `tail_rounds`, `rot`, `nmask` | Derived: rounds per stage, calls in flight, message blocks per round, cycles per call, rounds in the last pass, result offset, masks in the LFSR window (see README.md) |
 | `luts_est` | The size-limit estimate (compare with `luts`) |
 | `status` | `ok`, `ok_nosynth` (`--no-synth`), `sim_fail`, or `error: …` |
 | `edge_pass`, `cycles_pass` | 1 if the vector set passed |
 | `fmax_mhz`, `closed`, `best_period_ns`, `wns_ns`, `synth_runs` | Fmax search result, as in `reports/synth_results.csv` (`closed` = 0: no run met timing; Fmax is the best achieved delay, an estimate) |
 | `luts`, `ffs`, `slices`, `bram_tiles`, `dsps` | Area |
-| `thr_*`, `pct_long_*`, `ad_pt_ratio`, `kbps_per_lut_*`, `x_*`, `cyc_*` | Same definitions as `reports/benchmark.csv` (see `reports/README.md`); `x_` columns are relative to `core_v2` |
+| `thr_*`, `pct_long_*`, `ad_pt_ratio`, `kbps_per_lut_*`, `x_*`, `cyc_*` | Same definitions as `reports/benchmark.csv` (see `reports/README.md`); `x_` columns are relative to `brody/base` |
 | `crit_class` | Category of the worst path (below) |
 | `crit_src`, `crit_dst` | Its source and destination registers, shortened (`core/` = CryptoCore, `dp/` = datapath) |
 | `crit_levels`, `crit_route_pct` | Logic levels; share of the delay spent in routing |
@@ -84,4 +84,4 @@ named copy.
 | `tag`, `lfsr` | Ends in the tag accumulator / the mask LFSR |
 | `ctrl`, `datapath`, `datapath->ctrl` | The remaining endpoint combinations |
 
-`critpath.py` also works on named cores: `python3 scripts/critpath.py --core v2_r4_optBCD`.
+`critpath.py` also works on named cores: `python3 scripts/critpath.py --core brody/r4_BtoD`.

@@ -1,3 +1,0 @@
-# Busy probe for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
-# core_v2_gen: one probe, 1 while the slots compute rounds (all G_N slots run in lockstep).
-perm  perm_en

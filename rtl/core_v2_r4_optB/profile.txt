@@ -1,4 +1,0 @@
-# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
-# Each probe is a std_logic that is '1' exactly in the cycles a permutation unit computes rounds.
-# core_v2_r4_optB has one permutation unit; CryptoCore drives perm_en in PERM and PERM_KEY.
-perm  perm_en

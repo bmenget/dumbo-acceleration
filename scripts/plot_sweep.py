@@ -34,7 +34,7 @@ SURF, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781",
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 U_COLORS = {1: "#86b6ef", 2: "#3987e5", 4: "#1c5cab", 8: "#0d366b"}   # ordinal blue, light -> dark
 SEQ = LinearSegmentedColormap.from_list("seq", ["#cde2fb", "#9ec5f4", "#5598e7", "#256abf", "#104281"])
-NAMED = {"v2": "v2 (baseline)", "v2_r4_optBC": "optBC", "v2_r4_optBCD": "optBCD", "v2_r4_optBCDE": "optBCDE"}
+NAMED = {"brody/base": "base (baseline)", "brody/r4_BtoC": "r4_BtoC", "brody/r4_BtoD": "r4_BtoD", "brody/r4_BtoE": "r4_BtoE"}
 
 plt.rcParams.update({
     "figure.facecolor": SURF, "axes.facecolor": SURF, "savefig.facecolor": SURF,

@@ -3,7 +3,7 @@
 
 Each path gets one category:
   perm           most logic cells lie inside a permutation unit (GMU cores: .../PERM/, PERM_B/;
-                 core_v2_gen: .../gen_stage[i].ST/), or, when Vivado flattened that hierarchy, the path
+                 brody/gen: .../gen_stage[i].ST/), or, when Vivado flattened that hierarchy, the path
                  runs from the round counter or a state register into a state/key register. The clock is
                  set by the rounds per stage (an in-place unmask path also matches the second rule; it is
                  short and rarely critical).
@@ -27,7 +27,7 @@ shrink (%) before that category becomes critical. A gap near 0 means two bottlen
 
 Usage:
   critpath.py <run dir or timing.rpt>   classify one Vivado run
-  critpath.py --core v2_r4_optBCD       the best run of a named core's latest synthesis
+  critpath.py --core brody/r4_BtoD     the best run of a named core's latest synthesis
 """
 import argparse
 import csv
@@ -44,7 +44,7 @@ PERM_MARK = re.compile(r"/(PERM|PERM_B)/|gen_stage\[\d+\]\.ST/|gen_perm\[\d+\]\.
 # datapath registers that are control in nature (registered selects/enables living in the datapath)
 DP_CTRL_REGS = re.compile(r"(mode_q|unmask_q)")
 # registers between which a permutation stage always sits: GMU cores' state registers and key register,
-# core_v2_gen's slot registers; and the round counter, which selects the round constants
+# brody/gen's slot registers; and the round counter, which selects the round constants
 STATE_REG = re.compile(r"gen_reg\[\d+\]\.r_reg|/r_reg\[|ms_reg_out_reg|msb_reg|key_out_reg")
 ROUND_CNT = re.compile(r"perm_cnt_int_reg")
 LOGIC_CELL = re.compile(r"^\s+SLICE_\S+\s+(LUT\d|CARRY4|MUXF\d)\b.*\s(\S+)$")

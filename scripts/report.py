@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Benchmark report: one row per v2 core, in the format of GMU's LWC benchmark tables
-(Mohajerani et al., ePrint 2023/484, Tables 12 and 14), plus speedups against the baseline core_v2.
+(Mohajerani et al., ePrint 2023/484, Tables 12 and 14), plus speedups against the baseline brody/base.
 
 Inputs for each core:
   - measured cycles: build/sim/questa/<core>/cycles/timing.csv (`make cycles`). Encryptions with a
@@ -36,7 +36,7 @@ import metrics  # noqa: E402
 SIMS = ROOT / "build" / "sim" / "questa"
 SYNTH = ROOT / "reports" / "synth_results.csv"
 OUT = ROOT / "reports" / "benchmark.csv"
-BASELINE = "v2"
+BASELINE = "brody/base"
 
 COLS = ["core", "rounds", "cycles_per_perm", "fmax_mhz", "luts", "ffs",
         "thr_pt_long", "thr_pt_1536", "thr_pt_64", "thr_pt_16",
@@ -54,10 +54,10 @@ def current_part():
 
 
 def rtl_mtime(core):
-    d = ROOT / "rtl" / f"core_{core}"
+    d = ROOT / "rtl" / core
     files = [p for p in d.iterdir() if p.suffix in (".vhd", ".sv", ".v") or p.name == "defines.txt"]
-    files += list((ROOT / "rtl" / "lwc").glob("*.vhd"))
-    files += [ROOT / rel for rel in (d / "filelist.txt").read_text().split()]   # shared sources (rtl/logan/)
+    files += list((ROOT / "rtl" / "shared" / "lwc").glob("*.vhd"))
+    files += [ROOT / rel for rel in (d / "filelist.txt").read_text().split()]   # shared sources (rtl/logan/src/)
     return max(p.stat().st_mtime for p in files)
 
 
@@ -111,7 +111,9 @@ def core_row(core, s, part):
 def main():
     part = current_part()
     synth = latest_synth()
-    cores = sorted(p.parent.parent.name for p in SIMS.glob("v2*/cycles/timing.csv"))
+    # every v2 core with measured cycles (core = path under rtl/; gmu/* cores are spec v1)
+    cores = sorted(c for c in (p.parent.parent.relative_to(SIMS).as_posix() for p in SIMS.rglob("cycles/timing.csv"))
+                   if not c.startswith("gmu/") and (ROOT / "rtl" / c / "filelist.txt").exists())
     if BASELINE not in cores:
         raise SystemExit(f"no cycles for the baseline: run `make cycles CORE={BASELINE}` first")
     rows = [core_row(c, synth.get(c), part) for c in cores]
@@ -139,7 +141,7 @@ def main():
     for r in rows:
         print("".join(f"{str(r.get(c, '') or '-'):>{w}}" if i else f"{r[c]:<{w}}"
                       for i, (c, w) in enumerate(show)) + f"  {r['checks']}")
-    print(f"\nthroughput in Mbit/s; x = relative to core_{BASELINE}; target part {part}; "
+    print(f"\nthroughput in Mbit/s; x = relative to {BASELINE}; target part {part}; "
           f"written to {OUT.relative_to(ROOT)}")
 
 

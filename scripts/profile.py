@@ -6,12 +6,12 @@ decrypt with the same key) with Questa dumping a VCD of:
   - the clock and the core's data handshakes (CryptoCore ports, the same for every core):
       in  = bdi_valid and bdi_ready, or key_valid and key_ready   (a 32-bit word enters the core)
       out = bdo_valid and bdo_ready                               (a 32-bit word leaves the core)
-  - the core's "busy" probes, listed in rtl/core_<core>/profile.txt, one per line:
+  - the core's "busy" probes, listed in rtl/<core>/profile.txt, one per line:
         <label>  <path below the CryptoCore instance>
     e.g.  perm  perm_en
     Each probe must be a std_logic that is '1' exactly in the cycles a permutation unit computes rounds.
     A core with two permutation units lists two probes.
-    Pipelined ring (Logan's spongent_perm_pipe, rtl/logan/): its per-stage valid bits are an unpacked array,
+    Pipelined ring (Logan's spongent_perm_pipe, rtl/logan/src/): its per-stage valid bits are an unpacked array,
     which Questa's VCD silently drops, so profile.txt has one line instead:
         ring  <S>  <accept path>  <fin path>
     and the S stage probes st0..st<S-1> are rebuilt exactly from the two scalars with the ring's own update:
@@ -26,8 +26,8 @@ The window runs from the first to the last cycle with any activity (busy or I/O)
 final tag permutation and the tag check of a decryption.
 
 Subcommands (both called by the Makefile):
-  profile.py do    --core v2 --out build/prof/v2.do          write the Questa do-file
-  profile.py parse --core v2 --workload long --vcd <file>    classify cycles, print, update reports/profile.csv
+  profile.py do    --core brody/base --out build/prof/brody/base.do         write the Questa do-file
+  profile.py parse --core brody/base --workload long --vcd <file>    classify cycles, print, update reports/profile.csv
 """
 import argparse
 import csv
@@ -48,7 +48,7 @@ COLS = ["date", "core", "workload", "window_cycles", "busy_io_pct", "busy_pct", 
 def probe_spec(core):
     """(signals, ring): signals = [(label, full path)] to dump; ring = None, or S for a `ring` line, whose
     signals are labelled ring_accept and ring_fin."""
-    f = ROOT / "rtl" / f"core_{core}" / "profile.txt"
+    f = ROOT / "rtl" / core / "profile.txt"
     out, ring = [], None
     for line in f.read_text().splitlines():
         line = line.split("#", 1)[0].strip()
@@ -171,7 +171,7 @@ def cmd_parse(a):
         nout += wo
     pct = lambda x: f"{100.0 * x / n:.1f}"
 
-    print(f"\n=== profile: core_{a.core}, workload {a.workload} ({n} cycles in window) ===")
+    print(f"\n=== profile: {a.core}, workload {a.workload} ({n} cycles in window) ===")
     for k in cat:
         print(f"  {k:<9}{cat[k]:>8}  {pct(cat[k]):>5}%")
     print(f"  any unit busy  {pct(n - conc[0])}%")

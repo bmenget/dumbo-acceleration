@@ -1,8 +1,8 @@
 core,rounds_per_stage,nks,cyc_blk_pt_1536,note
-v2_r4_optBCDEFG,4,3,9.93,make cycles with NKS edited in elephant_constants.vhd (OPT_BCDEFG.md); H schedules identically
-v2_r4_optBCDEFG,4,4,7.54,
-v2_r4_optBCDEFG,4,5,5.94,
-v2_r4_optBCDEFG,4,6,4.93,built value
-v2_r2_optBCDEFGH,2,8,6.23,OPT_BCDEFGH_R2.md
-v2_r2_optBCDEFGH,2,10,4.93,built value
-v2_r2_optBCDEFGH,2,12,4.93,same on PT; mixed AD+PT 883 vs 873 cycles at NKS 10
+brody/r4_BtoG,4,3,9.93,make cycles with NKS edited in elephant_constants.vhd (OPT_BCDEFG.md); H schedules identically
+brody/r4_BtoG,4,4,7.54,
+brody/r4_BtoG,4,5,5.94,
+brody/r4_BtoG,4,6,4.93,built value
+brody/r2_BtoH,2,8,6.23,OPT_BCDEFGH_R2.md
+brody/r2_BtoH,2,10,4.93,built value
+brody/r2_BtoH,2,12,4.93,same on PT; mixed AD+PT 883 vs 873 cycles at NKS 10

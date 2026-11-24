@@ -1,0 +1,15 @@
+rtl/shared/lwc/NIST_LWAPI_pkg.vhd
+rtl/brody/r4_BtoH/elephant_constants.vhd
+rtl/brody/r4_BtoH/design_pkg.vhd
+rtl/brody/r4_BtoH/elephant_datapath_lfsr.vhd
+rtl/brody/r4_BtoH/elephant_perm.vhd
+rtl/brody/r4_BtoH/elephant_datapath.vhd
+rtl/brody/r4_BtoH/CryptoCore.vhd
+rtl/shared/lwc/key_piso.vhd
+rtl/shared/lwc/fwft_fifo.vhd
+rtl/shared/lwc/data_sipo.vhd
+rtl/shared/lwc/data_piso.vhd
+rtl/shared/lwc/StepDownCountLd.vhd
+rtl/shared/lwc/PreProcessor.vhd
+rtl/shared/lwc/PostProcessor.vhd
+rtl/shared/lwc/LWC.vhd
