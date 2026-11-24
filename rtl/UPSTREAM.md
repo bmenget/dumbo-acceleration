@@ -5,6 +5,7 @@
 | `lwc/*.vhd` | https://github.com/GMUCERG/Elephant `src_rtl/v1/LWC/` | `090d1e745fa28add5d11634cec9883681e6bc763` |
 | `core_v1/*.vhd` | same repo, `src_rtl/v1/*.vhd` (GMU arch-1) | same |
 | `core_v2/*.vhd` | started as a copy of `core_v1/`; **modified** for Dumbo v2 (`elephant_datapath.vhd`, `CryptoCore.vhd`); other files identical to upstream | same |
+| `logan/*.sv` | https://github.com/ljtalton/dumbo-fpga (Logan's SystemVerilog cores), unmodified; details in `logan/UPSTREAM.md` | `74a0ef47b5db14b6f6eaf92861b61e981c8fbb52` |
 
 `lwc/` and `core_v1/` are byte-identical to upstream. Do not edit them.
 `diff -r core_v1 core_v2` shows exactly what the v2 port changed.

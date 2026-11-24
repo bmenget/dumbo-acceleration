@@ -16,6 +16,19 @@ def _gen(core):
     return m if len(m) == 3 else None
 
 
+def defines(core):
+    """Verilog defines {NAME: int} from rtl/core_<core>/defines.txt (Logan's cores, rtl/logan/), else {}."""
+    f = ROOT / "rtl" / f"core_{core}" / "defines.txt"
+    out = {}
+    if f.exists():
+        for line in f.read_text().splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line:
+                k, v = line.split("=", 1)
+                out[k.strip()] = int(v)
+    return out
+
+
 def rounds(core):
     """(rounds per cycle, cycles per permutation) from rtl/core_<core>/elephant_constants.vhd.
 
@@ -27,6 +40,11 @@ def rounds(core):
     if g:
         r = g["R"] // g["S"]
         return r, -(-80 // r)
+    d = defines(core)
+    if "DUMBO_R" in d:                       # Logan's iterative core: R rounds per cycle
+        return d["DUMBO_R"], 80 // d["DUMBO_R"]
+    if "DUMBO_K" in d:                       # Logan's ring: K rounds per stage
+        return d["DUMBO_K"], 80 // d["DUMBO_K"]
     f = ROOT / "rtl" / f"core_{core}" / "elephant_constants.vhd"
     m = _ROUNDS.findall(f.read_text()) if f.exists() else []
     if len(m) != 1:
@@ -36,10 +54,15 @@ def rounds(core):
 
 
 def slots(core):
-    """Permutation calls in flight: U*S for the parameterized core; known named cores; else 1."""
+    """Permutation calls in flight: U*S for the parameterized core; S for Logan's ring; known named cores; else 1."""
     g = _gen(core)
     if g:
         return g["U"] * g["S"]
+    d = defines(core)
+    if "DUMBO_S" in d:                       # Logan's ring: S stages, one call each
+        return d["DUMBO_S"]
     return {"v2_r4_optBC": 2, "v2_r4_optBCD": 4, "v2_r4_optBCDE": 4, "v2_r4_optBCDEF": 4,
             "v2_r4_optBCDEFG": 8, "v2_r4_optBCDEFGH": 8, "v2_r4_optBCDEFGHI": 8, "v2_r4_optBCDEFGHIJ": 8,
-            "v2_r2_optBCDEFGH": 16, "v2_r2_optBCDEFGHI": 16, "v2_r2_optBCDEFGHIJ": 16}.get(core, 1)
+            "v2_r2_optBCDEFGH": 16, "v2_r2_optBCDEFGHI": 16, "v2_r2_optBCDEFGHIJ": 16,
+            "v2_r2_optBCDEFGHIJK": 16, "v2_r2_optBCDEFGHIJKL": 16,
+            "v2_r2_optBCDEFGHIJKLM": 16}.get(core, 1)

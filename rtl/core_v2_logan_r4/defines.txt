@@ -1,0 +1,3 @@
+# Verilog defines for Logan's core (see rtl/logan/UPSTREAM.md): one NAME=VALUE per line.
+# make sim passes them to vlog (+define+), make synth to synth_design (-verilog_define).
+DUMBO_R=4

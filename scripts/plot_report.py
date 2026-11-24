@@ -30,6 +30,9 @@ Graphs (numbered as in the report outline):
   13_slot_timeline.png         every permutation call by kind + bus words: a 16 B message, long steady state
   14_synth_noise.png           WNS vs target period for optBCDEFG and optBCDEFGH (Vivado noise)
   15_thr_vs_luts.png           throughput vs LUTs on linear axes: our path and GMU's finalists only
+  16_logan_msgsize.png         throughput vs message size: our two fastest cores against Logan's two fastest
+Logan's SystemVerilog cores (rtl/logan/, CORE=v2_logan_*) appear in 05, 07, 09, 11, 15 and 16, always in aqua (C3)
+with square markers; they are not steps of our optimization path.
 """
 import csv
 import re
@@ -65,12 +68,31 @@ STEPS = [
 ]
 REFS = ["v2_r1", "v2_r5", "v2_r8", "v2_r16"]            # core_v2 at other rounds per cycle
 FINAL = "v2_r4_optBCDEFGHIJ"                             # the final core of the optimization path
-R2 = "v2_r2_optBCDEFGHIJ"                               # the same RTL at 2 rounds per stage
+R2 = "v2_r2_optBCDEFGHIJKL"                             # 2 rounds per stage: J's RTL + K, L (handshake paths)
 R2H = "v2_r2_optBCDEFGH"                                # ... and before option I
 NICE = {"v2": "core_v2 baseline", FINAL: "optBCDEFGHIJ", "v2_r4_optBCDEFGHI": "optBCDEFGHI", "v2_r4_optBCDEFGH": "optBCDEFGH",
-        "v2_r4_optBCDEFG": "optBCDEFG", "v2_r4_optBCDEF": "optBCDEF", R2: "optBCDEFGHIJ, 2 rounds/stage",
+        "v2_r4_optBCDEFG": "optBCDEFG", "v2_r4_optBCDEF": "optBCDEF", R2: "optBCDEFGHIJKL, 2 rounds/stage",
         R2H: "optBCDEFGH, 2 rounds/stage", "v2_r1": "core_v2 R=1",
         "v2_r5": "core_v2 R=5", "v2_r8": "core_v2 R=8", "v2_r16": "core_v2 R=16", "v2_r4": "core_v2 R=4"}
+# Logan's cores (rtl/logan/): same flow, wrapper and part as ours. core, short label, configuration
+LOGAN = [
+    ("v2_logan_r4", "Logan R=4", "iterative"),
+    ("v2_logan_pipe16x1d16", "Logan 16×1", "ring"),
+    ("v2_logan_pipe10x2d8", "Logan 10×2", "ring"),
+    ("v2_logan_pipe20x2d16", "Logan 20×2", "ring"),
+]
+CL = C3          # Logan's series color (validated with C1 and C2 on all pairs; aqua needs direct labels)
+NICE.update({c: f"{s} {m}" for c, s, m in LOGAN})
+# Logan's rings with our changes (rtl/core_v2_logan_pipe*_opt*): core, short label, name, the core it builds on.
+# Drawn as hollow aqua squares chained from his base cores, like our optimization path.
+LOGAN_OPT = [
+    ("v2_logan_pipe20x2d16_optI", "+I", "Logan 20×2 + our I", "v2_logan_pipe20x2d16"),
+    ("v2_logan_pipe20x2d16_optIL", "+I, L", "Logan 20×2 + our I, L", "v2_logan_pipe20x2d16_optI"),
+    ("v2_logan_pipe16x2d16_optIL", "32-round ring", "Logan ring 16×2, 2 entry points + our I, L",
+     "v2_logan_pipe20x2d16_optIL"),
+    ("v2_logan_pipe10x2d8_optIL", "+I, L", "Logan 10×2 + our I, L", "v2_logan_pipe10x2d8"),
+]
+NICE.update({c: n for c, _, n, _ in LOGAN_OPT})
 H_NOISE_SINCE = "2026-11-20T14:50"   # optBCDEFGH runs after the keystream FIFO change (final RTL)
 
 
@@ -170,6 +192,44 @@ def step_axis(ax, steps):
 
 def steps_in(bench):
     return [s for s in STEPS if s[0] in bench]
+
+
+def logan_in(bench):
+    return [s for s in LOGAN if s[0] in bench]
+
+
+def logan_points(ax, bench, xkey, ykey, offsets, label="Logan's cores (SystemVerilog)", fmt=None):
+    """Logan's cores as aqua squares, each directly labeled in ink. offsets: core -> (dx, dy, ha[, leader])."""
+    lg = logan_in(bench)
+    if not lg:
+        return
+    xs = [bench[c][xkey] for c, _, _ in lg]
+    ys = [bench[c][ykey] for c, _, _ in lg]
+    ax.scatter(xs, ys, marker="s", s=46, color=CL, edgecolor=SURF, linewidth=1, label=label, zorder=6)
+    for (c, s, m), x, y in zip(lg, xs, ys):
+        dx, dy, ha, *lead = offsets.get(c, (7, -4, "left"))
+        txt = fmt(c, s, x, y) if fmt else s
+        arrow = dict(arrowstyle="-", color=AXIS, lw=0.6, shrinkA=1, shrinkB=4) if lead and lead[0] else None
+        ax.annotate(txt, (x, y), xytext=(dx, dy), textcoords="offset points", fontsize=8, color=INK,
+                    fontweight="bold", ha=ha, va="center", arrowprops=arrow)
+
+
+def logan_opt_points(ax, bench, xkey, ykey, offsets, label="Logan's rings with our changes", fmt=None):
+    """Logan's rings with our changes: hollow aqua squares, each linked to the core it builds on."""
+    lo = [(c, s, pred) for c, s, _, pred in LOGAN_OPT if c in bench]
+    if not lo:
+        return
+    for c, _, pred in lo:
+        if pred in bench:
+            ax.plot([bench[pred][xkey], bench[c][xkey]], [bench[pred][ykey], bench[c][ykey]], color=CL, lw=1.2,
+                    zorder=5)
+    ax.scatter([bench[c][xkey] for c, _, _ in lo], [bench[c][ykey] for c, _, _ in lo], marker="s", s=46,
+               facecolor=SURF, edgecolor=CL, linewidth=1.6, label=label, zorder=6)
+    for c, s, _ in lo:
+        x, y = bench[c][xkey], bench[c][ykey]
+        dx, dy, ha = offsets.get(c, (7, 0, "left"))
+        ax.annotate(fmt(c, s, x, y) if fmt else s, (x, y), xytext=(dx, dy), textcoords="offset points",
+                    fontsize=8, color=INK, fontweight="bold", ha=ha, va="center")
 
 
 def hline(ax, y, text, color=INK2, ls=(0, (4, 3)), side="right", va="bottom", legend=False):
@@ -328,7 +388,7 @@ def g05_pareto(bench, gmu, sweep):
     xs = [500, 12000]
     for e in (100, 300, 1000, 3000):
         ax.plot(xs, [e * x / 1000 for x in xs], color=GRID, lw=1, ls=(0, (4, 3)), zorder=1)
-        xe = min(11000, 7000 * 1000 / e)
+        xe = min(11000, 10500 * 1000 / e)
         ax.text(xe, e * xe / 1000, f"{e} Kbps/LUT ", color=MUTED, fontsize=7.5, ha="right", va="bottom",
                 rotation=0, bbox=dict(facecolor=SURF, edgecolor="none", pad=0.5))
     if sweep:
@@ -369,20 +429,26 @@ def g05_pareto(bench, gmu, sweep):
                     fontsize=8, color=INK, fontweight="bold", ha="right" if dx < 0 else "left")
     if R2 in bench:
         ax.scatter(bench[R2]["luts"], bench[R2]["thr_pt_long"], marker="D", s=44, facecolor=SURF, edgecolor=C2,
-                   linewidth=1.5, label="+J at 2 rounds per stage", zorder=5)
+                   linewidth=1.5, label="+L at 2 rounds per stage (J + K, L)", zorder=5)
+    logan_points(ax, bench, "luts", "thr_pt_long",
+                 {"v2_logan_r4": (7, -10, "left"), "v2_logan_pipe16x1d16": (7, -7, "left"),
+                  "v2_logan_pipe10x2d8": (7, -4, "left"), "v2_logan_pipe20x2d16": (22, -9, "left", True)})
+    logan_opt_points(ax, bench, "luts", "thr_pt_long",
+                     {"v2_logan_pipe20x2d16_optI": (8, -7, "left"), "v2_logan_pipe20x2d16_optIL": (8, 6, "left"),
+                      "v2_logan_pipe16x2d16_optIL": (-8, 3, "right"), "v2_logan_pipe10x2d8_optIL": (7, 2, "left")})
     ax.set_xlim(500, 12000)
-    ax.set_ylim(100, 9000)
+    ax.set_ylim(100, 12000)
     ticks = [500, 1000, 2000, 5000, 10000]
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{t:,}" for t in ticks])
-    yt = [100, 200, 500, 1000, 2000, 5000]
+    yt = [100, 200, 500, 1000, 2000, 5000, 10000]
     ax.set_yticks(yt)
     ax.set_yticklabels([f"{t:,}" for t in yt])
     ax.minorticks_off()
     ax.set_xlabel("LUTs (log scale)")
     ax.set_ylabel("long-message plaintext throughput, Mbit/s (log scale)")
-    ax.set_title("Throughput vs area: our cores, the sweep and GMU's LWC finalist benchmark")
-    ax.legend(loc="upper left", fontsize=8)
+    ax.set_title("Throughput vs area: our cores, Logan's, the sweep and GMU's LWC finalist benchmark")
+    ax.legend(loc="lower right", fontsize=8)
     footer(fig, "All on xc7a100tftg256-2L. Finalists: ePrint 2023/484 Tables 12 and 14 (unprotected, "
                 "encryption). Diagonals: constant throughput per LUT.")
     save(fig, "05_pareto_all.png")
@@ -392,11 +458,11 @@ def g15_thr_luts(bench, gmu):
     """Linear-axis companion to 05: only the optimization path and GMU's finalists, every point of ours
     labeled. On linear axes, constant throughput per LUT is a ray from the origin."""
     fig, ax = plt.subplots(figsize=(10, 6.6))
-    X1, Y1 = 8200, 7000
+    X1, Y1 = 8200, 8600
     for e in (500, 1000, 2000, 3000):
         xe = min(X1, Y1 * 1000 / e)
         ax.plot([0, xe], [0, e * xe / 1000], color=GRID, lw=1, ls=(0, (4, 3)), zorder=1)
-        yl = {3000: 0.95, 2000: 0.79}.get(e, 0.97) * Y1    # stagger the two steep rays' labels
+        yl = {3000: 0.95, 2000: 0.79, 1000: 0.88}.get(e, 0.97) * Y1    # stagger the two steep rays' labels
         xl = min(X1 * 0.985, yl * 1000 / e)
         ax.text(xl, e * xl / 1000, f"{e:,} Kbps/LUT", color=MUTED, fontsize=7.5, ha="right", va="bottom",
                 bbox=dict(facecolor=SURF, edgecolor="none", pad=0.5), zorder=1)
@@ -439,14 +505,22 @@ def g15_thr_luts(bench, gmu):
                     fontweight="bold", ha=ha, va="center")
     if R2 in bench:
         ax.scatter(bench[R2]["luts"], bench[R2]["thr_pt_long"], marker="D", s=44, facecolor=SURF, edgecolor=C2,
-                   linewidth=1.5, label="+J at 2 rounds per stage", zorder=5)
+                   linewidth=1.5, label="+L at 2 rounds per stage (J + K, L)", zorder=5)
+    logan_points(ax, bench, "luts", "thr_pt_long",
+                 {"v2_logan_r4": (4, -16, "right", True), "v2_logan_pipe16x1d16": (8, -2, "left"),
+                  "v2_logan_pipe10x2d8": (8, -2, "left"), "v2_logan_pipe20x2d16": (8, -4, "left")})
+    logan_opt_points(ax, bench, "luts", "thr_pt_long",
+                     {"v2_logan_pipe20x2d16_optI": (8, -4, "left"), "v2_logan_pipe20x2d16_optIL": (8, 4, "left"),
+                      "v2_logan_pipe16x2d16_optIL": (-10, 1, "right"), "v2_logan_pipe10x2d8_optIL": (8, 0, "left")},
+                     fmt=lambda c, s, x, y: (f"{s}  {y:,.0f} Mbps, {x:,.0f} LUT, {1000 * y / x:,.0f} Kbps/LUT"
+                                             if c == "v2_logan_pipe16x2d16_optIL" else s))
     ax.set_xlim(0, X1)
     ax.set_ylim(0, Y1)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_xlabel("LUTs")
     ax.set_ylabel("long-message plaintext throughput, Mbit/s")
-    ax.set_title("Throughput vs LUTs: our optimization path and GMU's LWC finalists")
+    ax.set_title("Throughput vs LUTs: our optimization path, Logan's cores and GMU's LWC finalists")
     ax.legend(loc="lower right", fontsize=8)
     footer(fig, "All on xc7a100tftg256-2L, 32-bit LWC API. Finalists: ePrint 2023/484 Tables 12 and 14 "
                 "(unprotected, encryption). Dashed rays: constant throughput per LUT.")
@@ -494,14 +568,69 @@ def g06_msgsize(bench, gmu):
     save(fig, "06_thr_vs_msgsize.png")
 
 
+def g16_logan_msgsize(bench):
+    """Our two fastest cores against Logan's two fastest, PT throughput by message size. Owner = hue
+    (ours orange, Logan aqua), configuration = line style and marker fill; every line directly labeled."""
+    sizes = [("thr_pt_16", "16 B"), ("thr_pt_64", "64 B"), ("thr_pt_1536", "1536 B"), ("thr_pt_long", "long")]
+    series = [(FINAL, "optBCDEFGHIJ (ours)", C2, "D", "-", True),
+              (R2, "optBCDEFGHIJKL, 2 rounds/stage (ours)", C2, "D", (0, (4, 3)), False),
+              ("v2_logan_pipe20x2d16", "Logan 20×2 ring", CL, "s", "-", True),
+              ("v2_logan_pipe16x2d16_optIL", "Logan ring, 16×2 with 2 entry points + our I, L", CL, "s", (0, (4, 3)),
+               False)]
+    series = [s for s in series if s[0] in bench]
+    if not any(c.startswith("v2_logan") for c, *_ in series):
+        return
+    import math
+    fig, ax = plt.subplots(figsize=(9, 5.6))
+    ax.set_yscale("log")
+    x = list(range(len(sizes)))
+    ends, starts = [], []
+    if "v2" in bench:
+        ys = [bench["v2"][k] for k, _ in sizes]
+        ax.plot(x, ys, color=INK2, lw=1.4, ls=(0, (2, 2)), marker="o", ms=5, zorder=2, label="core_v2 baseline")
+        ends.append((ys[-1], "core_v2 baseline", INK2))
+    for c, name, col, mk, ls, filled in series:
+        ys = [bench[c][k] for k, _ in sizes]
+        ax.plot(x, ys, color=col, lw=2, ls=ls, marker=mk, ms=7, mfc=col if filled else SURF, mec=col if not filled
+                else SURF, mew=1.5, zorder=3, label=name)
+        ends.append((ys[-1], name, INK))
+        starts.append(ys[0])
+    for v, l in zip(starts, spread([math.log10(v) for v in starts], 0.045)):   # 16 B values, nudged apart
+        ax.annotate(f"{v:.0f}", (0, v), xytext=(-0.12, 10 ** l), textcoords="data", ha="right", va="center",
+                    fontsize=7.5, color=INK2)
+    ly = spread([math.log10(v) for v, _, _ in ends], 0.07)
+    for (v, name, col), l in zip(ends, ly):
+        ax.annotate(name, (len(sizes) - 1, v), xytext=(len(sizes) - 0.88, 10 ** l), textcoords="data",
+                    fontsize=8, color=col, va="center",
+                    arrowprops=dict(arrowstyle="-", color=AXIS, lw=0.6, shrinkA=0, shrinkB=3))
+    ax.set_xticks(x)
+    ax.set_xticklabels([s for _, s in sizes])
+    ax.set_xlim(-0.55, len(sizes) + 1.3)
+    yt = [100, 200, 500, 1000, 2000, 5000]
+    ax.set_yticks(yt)
+    ax.set_yticklabels([f"{t:,}" for t in yt])
+    ax.minorticks_off()
+    ax.grid(axis="x", visible=False)
+    ax.set_xlabel("plaintext message size (no AD)")
+    ax.set_ylabel("plaintext throughput, Mbit/s (log scale)")
+    ax.set_title("Our fastest cores vs Logan's 20×2 ring, and his ring with our changes")
+    ax.legend(loc="lower right", fontsize=8, handlelength=4)
+    footer(fig, "Same flow for all: LWC_TB cycles x Fmax from Vivado 2026.1 on xc7a100tftg256-2L, same wrapper. "
+                "Logan's rings win on long messages (higher clock);\nours win on short ones: each permutation call "
+                "takes a full trip around his ring (80/K + 1 cycles). Left labels: 16 B throughput.")
+    save(fig, "16_logan_msgsize.png")
+
+
 def g07_ranked(bench, gmu):
     mine = [c for c, _, _ in steps_in(bench)] + ([R2] if R2 in bench else [])
     items = [(g["kbps_per_lut_pt"], g["impl"], "gmu") for g in gmu]
     items += [(bench[c]["kbps_per_lut_pt"], nice(c) + " (ours)", "hero" if c == FINAL else "ours")
               for c in mine]
+    items += [(bench[c]["kbps_per_lut_pt"], nice(c), "logan") for c, _, _ in logan_in(bench)]
+    items += [(bench[c]["kbps_per_lut_pt"], nice(c), "logan") for c, *_ in LOGAN_OPT if c in bench]
     items.sort()
     fig, ax = plt.subplots(figsize=(8.5, 0.23 * len(items) + 1.2))
-    col = {"gmu": CONTEXT, "ours": C1, "hero": C2}
+    col = {"gmu": CONTEXT, "ours": C1, "hero": C2, "logan": CL}
     y = range(len(items))
     ax.barh(list(y), [v for v, _, _ in items], color=[col[k] for _, _, k in items], height=0.72,
             edgecolor=SURF, linewidth=1, zorder=2)
@@ -517,9 +646,10 @@ def g07_ranked(bench, gmu):
     ax.grid(axis="y", visible=False)
     ax.tick_params(axis="y", length=0)
     ax.set_xlabel("long-message PT throughput / area (Kbit/s per LUT)")
-    ax.set_title("Throughput per LUT: our cores among GMU's LWC finalist benchmark")
+    ax.set_title("Throughput per LUT: our cores and Logan's among GMU's LWC finalist benchmark")
     ax.legend(handles=patches([("GMU benchmark (ePrint 2023/484 Table 14)", CONTEXT), ("our cores", C1),
-                               ("optBCDEFGHI (final)", C2)]), loc="lower right", fontsize=8)
+                               ("optBCDEFGHIJ (final)", C2)] + ([("Logan's cores", CL)] if logan_in(bench) else [])),
+              loc="lower right", fontsize=8)
     save(fig, "07_efficiency_ranked.png")
 
 
@@ -527,7 +657,12 @@ def g07_ranked(bench, gmu):
 def g09_breakdown(bench, prof):
     st = [s for s in steps_in(bench) if s[0] in prof]
     if R2 in prof:
-        st.append((R2, "+J", "at 2 rounds/stage"))
+        st.append((R2, "+L", "at 2 rounds/stage"))
+    st += [(c, s, m) for c, s, m in LOGAN if c in prof]
+    if "v2_logan_pipe20x2d16_optIL" in prof:
+        st.append(("v2_logan_pipe20x2d16_optIL", "Logan 20×2", "+ our I, L"))
+    if "v2_logan_pipe16x2d16_optIL" in prof:
+        st.append(("v2_logan_pipe16x2d16_optIL", "Logan 16×2,", "2 entry points + I, L"))
     segs = [("busy_io_pct", "permutation and I/O overlap", C1, "#ffffff"),
             ("busy_pct", "permutation only", LIGHTBLUE, INK),
             ("io_pct", "I/O only", C2, "#ffffff"),
@@ -554,7 +689,9 @@ def g09_breakdown(bench, prof):
               ncol=4, fontsize=8)
     ax.set_title("Where the cycles go (1536 B AD + 1536 B PT)", pad=26)
     footer(fig, "make profile WL=long. 'I/O' = a 32-bit word moves in or out of the core. From +G on, the core "
-                "computes while a word moves in over 90% of cycles: it is I/O-bound.")
+                "computes while a word moves in over 90% of cycles: it is I/O-bound.\n"
+                "Logan's rings: 'permutation' = at least one ring stage holds a call (stages rebuilt from accept/fin, "
+                "see scripts/profile.py; the 2-entry 16×2 ring has direct per-stage probes).")
     save(fig, "09_cycle_breakdown.png")
 
 
@@ -568,7 +705,7 @@ def g10_area():
              ("lfsr", "mask LFSRs", C3), ("control", "control (issue engine, loader)", C4),
              ("wrapper", "LWC wrapper", CONTEXT)]
     fig, axs = plt.subplots(1, 2, figsize=(10, 5.2), gridspec_kw=dict(wspace=0.32))
-    short = {"v2_r4_optBCDEFG": "+G", "v2_r4_optBCDEFGH": "+H", FINAL: "+J", R2: "+J\n2 rounds/stage"}
+    short = {"v2_r4_optBCDEFG": "+G", "v2_r4_optBCDEFGH": "+H", FINAL: "+J", R2: "+L\n2 rounds/stage"}
     labels = [short.get(c, nice(c)) for c in data]
     for ax, unit, title in ((axs[0], "lut", "LUT sites"), (axs[1], "ff", "flip-flops")):
         for i, (c, d) in enumerate(data.items()):
@@ -625,15 +762,29 @@ def g11_fmax_rps(bench, gmu, sweep):
         jit = 2 ** ((g.index(c) - (len(g) - 1) / 2) * 0.03)
         ax.scatter(bench[c]["rounds"] * jit, bench[c]["fmax_mhz"], marker="D", s=40, color=C2, edgecolor=SURF,
                    linewidth=1, zorder=5)
-        names = {"v2_r4_optBCDEFGH": "+H", FINAL: "+I, +J", R2H: "+H (2 rounds/stage)", R2: "+J (2 rounds/stage)",
+        names = {"v2_r4_optBCDEFGH": "+H", FINAL: "+I, +J", R2H: "+H (2 rounds/stage)", R2: "+L (2 rounds/stage)",
                  "v2_r4_optBCD": "+D"}
         if c in names:
             name = names[c]
             right = c in ("v2_r4_optBCDEFGH", FINAL)
-            ax.annotate(name, (bench[c]["rounds"] * jit, bench[c]["fmax_mhz"]), xytext=(7 if right else -7, 0),
+            ax.annotate(name, (bench[c]["rounds"] * jit, bench[c]["fmax_mhz"]),
+                        xytext=(7 if right else -7, -12 if c == R2 else 0),
                         textcoords="offset points", fontsize=8, color=INK, fontweight="bold",
                         ha="left" if right else "right", va="center")
     ax.scatter([], [], marker="D", s=40, color=C2, label="optimized cores (B … J)")
+    lg = logan_in(bench)
+    if lg:                           # nudged right of our cores that share the rounds-per-stage value
+        xs = [bench[c]["rounds"] * 2 ** 0.07 for c, _, _ in lg]
+        ys = [bench[c]["fmax_mhz"] for c, _, _ in lg]
+        ax.scatter(xs, ys, marker="s", s=44, color=CL, edgecolor=SURF, linewidth=1, zorder=6,
+                   label="Logan's cores (rounds per ring stage, or R)")
+        lab = {"v2_logan_pipe10x2d8": ("Logan 10×2", (7, -6)), "v2_logan_pipe20x2d16": ("Logan 20×2", (7, 6)),
+               "v2_logan_pipe16x1d16": ("Logan 16×1", (7, 0)), "v2_logan_r4": ("Logan R=4", (7, 0))}
+        for (c, _, _), x, y in zip(lg, xs, ys):
+            name, (dx, dy) = lab.get(c, (c, (7, 0)))
+            ax.annotate(name, (x, y), xytext=(dx, dy), textcoords="offset points", fontsize=8, color=INK,
+                        fontweight="bold", ha="left", va="center",
+                        bbox=dict(facecolor=SURF, edgecolor="none", pad=0.5))
     eg = next((g for g in gmu if g["impl"] == "Elephant_GMU"), None)
     if eg:
         ax.scatter(1, eg["fmax_mhz"], marker="*", s=150, color=INK, edgecolor=SURF, linewidth=0.8, zorder=5,
@@ -643,7 +794,16 @@ def g11_fmax_rps(bench, gmu, sweep):
     ax.minorticks_off()
     ax.set_xlabel("rounds per pipeline stage (log scale)")
     ax.set_ylabel("Fmax (MHz)")
-    ax.set_ylim(40, 250)
+    lo = [c for c, *_ in LOGAN_OPT if c in bench]
+    if lo:                           # Logan's rings with our changes, right of his base points (all 2 rounds/stage)
+        xs = [bench[c]["rounds"] * 2 ** 0.07 for c in lo]
+        ys = [bench[c]["fmax_mhz"] for c in lo]
+        ax.scatter(xs, ys, marker="s", s=44, facecolor=SURF, edgecolor=CL, linewidth=1.6, zorder=6,
+                   label="Logan's rings with our changes (I, L; 32-round ring)")
+        ax.annotate(f"Logan's rings + our changes\n{min(ys):.0f}–{max(ys):.0f} MHz", (max(xs), max(ys)),
+                    xytext=(9, 2), textcoords="offset points", fontsize=8, color=INK, fontweight="bold",
+                    ha="left", va="bottom", bbox=dict(facecolor=SURF, edgecolor="none", pad=0.5))
+    ax.set_ylim(40, 265)
     ax.set_title("Clock vs rounds per stage")
     ax.legend(loc="lower left", fontsize=8)
     footer(fig, "Above ~4 rounds per stage the rounds set the clock; below it the control logic and the frozen "
@@ -887,6 +1047,7 @@ def main():
     g13_timeline()
     g14_noise()
     g15_thr_luts(bench, gmu)
+    g16_logan_msgsize(bench)
 
 
 if __name__ == "__main__":

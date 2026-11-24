@@ -1,0 +1,4 @@
+# Busy probes for `make profile` (scripts/profile.py): see its docstring for the `ring` form.
+# Logan's ring (shim instance u_core): the per-stage valid bits u_ring/vl[] are an unpacked array, which Questa's
+# VCD drops, so profile.py rebuilds the 20 stage probes st0..st19 from the ring's accept and fin scalars.
+ring  20  u_core/u_ring/accept  u_core/u_ring/fin

@@ -61,6 +61,8 @@ after that, day-to-day work is just `make sim`.
 | `rtl/core_v2[_rN]_opt*/` | Further optimized v2 cores, one directory each (see Benchmarking) |
 | `tb/` | `LWC_TB` (GMU's testbench, shared by both specs); `tb/unit/` reserved for the permutation testbench |
 | `kat/` | Test vectors (see `kat/README.md`) |
+| `rtl/logan/` | Logan's SystemVerilog Dumbo v2 cores (iterative `CryptoCore.sv`, pipelined ring `CryptoCorePipe.sv`), copied byte-identical from his repo, plus our `design_pkg.vhd` for our wrapper; see `rtl/logan/UPSTREAM.md` |
+| `rtl/core_v2_logan_*/` | One configuration of Logan's cores each: `filelist.txt`, `defines.txt` (Verilog defines: `DUMBO_R`, or `DUMBO_S/K/D`), `profile.txt`. `r4`, `pipe20x2d16`, `pipe10x2d8`, `pipe16x1d16` |
 | `rtl/core_v2_gen/` | Parameterized core (rounds per unit R, pipeline stages S, units U, fast loader) for the design-space sweep; see `GEN.md` |
 | `scripts/` | `fetch_sources.sh`, `gen_kat.py`, `check_model_kat.py`, `sim_result.sh`; benchmarking: `profile.py`, `synth.py`, `vivado_build.tcl`, `report.py`, `metrics.py` (metric formulas shared by report and sweep), `critpath.py` (critical-path classifier); sweep: `sweep.py` |
 | `reports/` | `benchmark.csv` (every core vs baseline), `profile.csv` (cycle breakdown), `synth_results.csv`, `synth_runs.csv`; `sweep/` (design-space sweep of `core_v2_gen`, see `reports/sweep/README.md`) |
@@ -131,6 +133,11 @@ same vectors, the same part and the same flow.
 **Start a new core:** `cp -r rtl/core_v2 rtl/core_v2_opt1`, then fix the paths in
 `rtl/core_v2_opt1/filelist.txt` (`core_v2` → `core_v2_opt1`) and edit the VHDL. Keep the entity name
 `CryptoCore` (the wrapper instantiates it). If you add or rename permutation units, update `profile.txt`.
+**Verilog / SystemVerilog cores** (Logan's, `rtl/core_v2_logan_*`) use the same flow: `.sv`/`.v` files in
+`filelist.txt` are compiled with `vlog -sv` after the VHDL (`make sim`, Questa only; GHDL refuses them) and read with
+`read_verilog -sv` by `vivado_build.tcl`; sizes come from the core's `defines.txt` (`+define+` / `-verilog_define`).
+The Fmax probe target for the rings is loose (the control-floor model is fit to our cores); `PERIOD0=4.4` starts
+near Logan's own result. `critpath.py` does not recognize his permutation cells as `perm`.
 To isolate one optimization, copy the `core_v2_rN` with the same rounds per cycle instead, name the result
 `core_v2_rN_<opt>` (e.g. `core_v2_r4_optB`), and compare it against that `core_v2_rN`.
 `rtl/ACCELERATION.md` lists the options and the files each one touches.

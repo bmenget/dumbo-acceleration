@@ -1,0 +1,3 @@
+# Busy probes for `make profile` (scripts/profile.py): <label> <path below the CryptoCore instance>
+# Logan's iterative core: one permutation, busy while it computes rounds.
+perm  u_perm/busy

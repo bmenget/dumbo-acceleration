@@ -2,6 +2,7 @@
 # Called by scripts/synth.py; can also be run by hand:
 #   vivado -mode batch -nojournal -nolog -source scripts/vivado_build.tcl \
 #          -tclargs <filelist.txt> <period_ns> <outdir> <part> <top> [flow]
+#   Optional: defines.txt next to <filelist.txt> holds Verilog defines (see below).
 #
 # flow (optional, default "base"):
 #   base   the project's standard flow: synthesis without a clock (not timing-driven), the clock is created
@@ -25,11 +26,31 @@ if {[lsearch -exact {base tsyn perf area} $flow] < 0} { error "unknown flow $flo
 file mkdir $outdir
 set_param general.maxThreads 8
 
-# Compile-ordered VHDL files, absolute paths. VHDL-2008 is required (process(all) in CryptoCore).
+# Compile-ordered source files, absolute paths. VHDL-2008 is required (process(all) in CryptoCore).
+# .sv / .v files (Logan's cores, rtl/logan/) are read as SystemVerilog / Verilog.
 set fh [open $filelist r]
 set files [split [string trim [read $fh]] "\n"]
 close $fh
-foreach f $files { read_vhdl -vhdl2008 $f }
+foreach f $files {
+    switch -glob -- $f {
+        *.sv    { read_verilog -sv $f }
+        *.v     { read_verilog $f }
+        default { read_vhdl -vhdl2008 $f }
+    }
+}
+
+# Verilog defines: defines.txt next to the file list (written by synth.py from rtl/core_<core>/defines.txt),
+# one NAME=VALUE per line, # comments. Passed to synth_design as -verilog_define.
+set vdefs {}
+set dfile [file join [file dirname $filelist] defines.txt]
+if {[file exists $dfile]} {
+    set fh [open $dfile r]
+    foreach line [split [read $fh] "\n"] {
+        set d [string trim [lindex [split $line "#"] 0]]
+        if {$d ne ""} { lappend vdefs -verilog_define $d }
+    }
+    close $fh
+}
 
 set sdir {}
 set odir {}
@@ -48,7 +69,7 @@ if {$flow eq "perf"} {
     set odir {-directive ExploreArea}
 }
 if {$flow eq "base"} {
-    synth_design -top $top -part $part -mode out_of_context
+    synth_design -top $top -part $part -mode out_of_context {*}$vdefs
     create_clock -period $period -name clk [get_ports clk]
 } else {
     # clock known to synthesis: timing-driven synthesis
@@ -57,7 +78,7 @@ if {$flow eq "base"} {
     puts $fh "create_clock -period $period -name clk \[get_ports clk\]"
     close $fh
     read_xdc -mode out_of_context $xdc
-    synth_design -top $top -part $part -mode out_of_context {*}$sdir
+    synth_design -top $top -part $part -mode out_of_context {*}$sdir {*}$vdefs
 }
 
 opt_design {*}$odir

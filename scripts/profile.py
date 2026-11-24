@@ -11,6 +11,11 @@ decrypt with the same key) with Questa dumping a VCD of:
     e.g.  perm  perm_en
     Each probe must be a std_logic that is '1' exactly in the cycles a permutation unit computes rounds.
     A core with two permutation units lists two probes.
+    Pipelined ring (Logan's spongent_perm_pipe, rtl/logan/): its per-stage valid bits are an unpacked array,
+    which Questa's VCD silently drops, so profile.txt has one line instead:
+        ring  <S>  <accept path>  <fin path>
+    and the S stage probes st0..st<S-1> are rebuilt exactly from the two scalars with the ring's own update:
+        vl[0] <= accept | (vl[S-1] & !fin),  vl[k] <= vl[k-1]   (all 0 after reset)
 
 Every rising clock edge is one cycle, classified as:
   busy+io   a permutation unit is busy AND a word moves in or out   (overlap: the goal)
@@ -40,17 +45,33 @@ COLS = ["date", "core", "workload", "window_cycles", "busy_io_pct", "busy_pct", 
         "any_busy_pct", "unit_busy", "units_concurrent", "in_words", "out_words"]
 
 
-def probes(core):
+def probe_spec(core):
+    """(signals, ring): signals = [(label, full path)] to dump; ring = None, or S for a `ring` line, whose
+    signals are labelled ring_accept and ring_fin."""
     f = ROOT / "rtl" / f"core_{core}" / "profile.txt"
-    out = []
+    out, ring = [], None
     for line in f.read_text().splitlines():
         line = line.split("#", 1)[0].strip()
-        if line:
-            label, path = line.split()
+        if not line:
+            continue
+        tok = line.split()
+        if tok[0] == "ring":
+            if ring is not None or len(tok) != 4:
+                sys.exit(f"{f}: one `ring <S> <accept> <fin>` line expected")
+            ring = int(tok[1])
+            out += [("ring_accept", f"{INST}/{tok[2].strip('/')}"), ("ring_fin", f"{INST}/{tok[3].strip('/')}")]
+        else:
+            label, path = tok
             out.append((label, f"{INST}/{path.strip('/')}"))
     if not out:
         sys.exit(f"{f}: no probes listed")
-    return out
+    if ring is not None and len(out) != 2:
+        sys.exit(f"{f}: a `ring` line cannot be combined with other probes")
+    return out, ring
+
+
+def probes(core):
+    return probe_spec(core)[0]
 
 
 def cmd_do(a):
@@ -117,12 +138,17 @@ def read_vcd(path, wanted):
 
 
 def cmd_parse(a):
-    pr = probes(a.core)
+    pr, ring = probe_spec(a.core)
     wanted = {"clk": CLK, **{k: f"{INST}/{s}" for k, s in IO.items()}, **{l: p for l, p in pr}}
-    labels = [l for l, _ in pr]
+    labels = [f"st{k}" for k in range(ring)] if ring else [l for l, _ in pr]
+    vl = [False] * (ring or 0)             # ring stage valid bits, rebuilt cycle by cycle
     rows = []
     for v in read_vcd(a.vcd, wanted):
-        busy = [v[l] == "1" for l in labels]
+        if ring:
+            busy = list(vl)
+            vl = [v["ring_accept"] == "1" or (vl[-1] and v["ring_fin"] != "1")] + vl[:-1]
+        else:
+            busy = [v[l] == "1" for l in labels]
         win = (v["in_valid"] == "1" and v["in_ready"] == "1") or (v["key_valid"] == "1" and v["key_ready"] == "1")
         wout = v["out_valid"] == "1" and v["out_ready"] == "1"
         rows.append((busy, win, wout))

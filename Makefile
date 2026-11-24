@@ -4,6 +4,7 @@
 #   v1        Elephant v1, GMU arch-1, unmodified: the validation control
 #   v2        Dumbo v2, our port of GMU arch-1: the BASELINE for every benchmark
 #   v2_opt1   ... optimized v2 cores (copy core_v2, then edit)
+#   v2_logan_*  Logan's SystemVerilog cores (rtl/logan/, see its UPSTREAM.md); sizes in rtl/core_<CORE>/defines.txt
 # The spec (C model and vectors) is the part before the first '_': v2_opt1 is checked against v2.
 # SPEC=v1 / SPEC=v2 still works as a shorthand for CORE=v1 / CORE=v2.
 #
@@ -71,6 +72,12 @@ endif
 PY       := .venv/bin/python
 TOP      := LWC_TB
 SRCS     := $(shell cat $(COREDIR)/filelist.txt tb/filelist.txt)
+# Mixed-language cores: .vhd files go to vcom (in filelist order), .sv/.v files to vlog afterwards.
+# Verilog defines (NAME=VALUE per line, # comments) come from rtl/core_<CORE>/defines.txt if it exists.
+VHDL_SRCS := $(filter %.vhd,$(SRCS))
+VLOG_SRCS := $(filter %.sv %.v,$(SRCS))
+DEFINES   := $(shell sed 's/\#.*//' $(COREDIR)/defines.txt 2>/dev/null)
+VLOG_CMD   = $(if $(VLOG_SRCS),vlog -sv -quiet $(addprefix +define+,$(DEFINES)) $(addprefix $(ABS)/,$(VLOG_SRCS)) &&)
 CFG      := $(CORE)
 # GMU's set exists only for v1; generated sets live under gen/.
 KATDIR   := $(if $(filter gmu,$(SET)),kat/$(SPEC)/gmu,kat/$(SPEC)/gen/$(SET))
@@ -117,6 +124,7 @@ sim:
 	@test -f $(KATDIR)/pdi.txt || { echo "no vectors in $(KATDIR) (run make kat SPEC=$(SPEC))"; exit 1; }
 	@rm -rf $(SIMDIR) && mkdir -p $(SIMDIR)
 ifeq ($(SIM),ghdl)
+	@test -z "$(VLOG_SRCS)" || { echo "SIM=ghdl: core_$(CORE) has Verilog sources; use SIM=questa"; exit 1; }
 	@mkdir -p build/ghdl/$(CFG)
 	$(GHDL) -a $(GHDLFLAGS) $(SRCS)
 	$(GHDL) -e $(GHDLFLAGS) $(TOP)
@@ -124,7 +132,8 @@ ifeq ($(SIM),ghdl)
 	  $(addprefix -g,$(TB_GENERICS)) > sim.out 2>&1 || true
 else ifeq ($(SIM),questa)
 	cd $(SIMDIR) && vlib work >/dev/null && \
-	  vcom -2008 -quiet $(addprefix $(ABS)/,$(SRCS)) && \
+	  vcom -2008 -quiet $(addprefix $(ABS)/,$(VHDL_SRCS)) && \
+	  $(VLOG_CMD) \
 	  vsim -c -quiet $(VSIM_FLAGS) $(addprefix -g,$(TB_GENERICS)) $(TOP) -do "$(VSIM_DO)" > sim.out 2>&1 || true
 else
 	$(error SIM must be ghdl or questa)

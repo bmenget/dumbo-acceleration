@@ -54,8 +54,10 @@ def current_part():
 
 
 def rtl_mtime(core):
-    files = [p for p in (ROOT / "rtl" / f"core_{core}").iterdir() if p.suffix == ".vhd"]
+    d = ROOT / "rtl" / f"core_{core}"
+    files = [p for p in d.iterdir() if p.suffix in (".vhd", ".sv", ".v") or p.name == "defines.txt"]
     files += list((ROOT / "rtl" / "lwc").glob("*.vhd"))
+    files += [ROOT / rel for rel in (d / "filelist.txt").read_text().split()]   # shared sources (rtl/logan/)
     return max(p.stat().st_mtime for p in files)
 
 

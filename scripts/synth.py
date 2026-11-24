@@ -118,6 +118,13 @@ def synth_core(core, period0, max_iter, flow="base"):
     work.mkdir(parents=True, exist_ok=True)
     filelist = base / "filelist.txt"
     filelist.write_text("".join(f"{ROOT / rel}\n" for rel in flist.read_text().split()))
+    # Verilog defines (Logan's cores): vivado_build.tcl reads defines.txt next to the file list.
+    defs = flist.parent / "defines.txt"
+    staged = base / "defines.txt"
+    if defs.exists():
+        shutil.copyfile(defs, staged)
+    elif staged.exists():
+        staged.unlink()
 
     say(f"\n=== core_{cfg}: part {PART}, top {TOP} ===")
     if period0 is None:
